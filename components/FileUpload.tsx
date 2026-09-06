@@ -1,5 +1,5 @@
-import React from 'react';
-import { UploadCloud, Edit, RefreshCw } from 'lucide-react';
+import React, { useState } from 'react';
+import { UploadCloud, Edit, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
@@ -9,10 +9,76 @@ interface FileUploadProps {
   t: (key: string) => any;
 }
 
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp'] as const;
+const MIN_MAGIC_BYTES = 8;
+
+const MAGIC_BYTES: Record<string, number[][]> = {
+  'image/png': [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+  'image/jpeg': [[0xff, 0xd8, 0xff]],
+  'image/webp': [[0x52, 0x49, 0x46, 0x46]],
+};
+
+const matchesMagicBytes = async (file: File, mime: string): Promise<boolean> => {
+  const signatures = MAGIC_BYTES[mime];
+  if (!signatures) return false;
+  const slice = file.slice(0, MIN_MAGIC_BYTES);
+  const buffer = await slice.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  return signatures.some((sig) => sig.every((b, i) => bytes[i] === b));
+};
+
+const readAsDataURL = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('validation_file_corrupt'));
+      }
+    };
+    reader.onerror = () => reject(new Error('validation_file_corrupt'));
+    reader.readAsDataURL(file);
+  });
+
+export const validateFile = async (file: File): Promise<{ dataUrl: string; mime: string }> => {
+  if (!ALLOWED_MIME.includes(file.type as (typeof ALLOWED_MIME)[number])) {
+    throw new Error('validation_file_type');
+  }
+  if (file.size <= 0) {
+    throw new Error('validation_file_corrupt');
+  }
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    throw new Error('validation_file_size');
+  }
+  const ok = await matchesMagicBytes(file, file.type);
+  if (!ok) {
+    throw new Error('validation_file_corrupt');
+  }
+  const dataUrl = await readAsDataURL(file);
+  return { dataUrl, mime: file.type };
+};
+
 const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, currentPreview, onEditClick, disabled, t }) => {
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [validating, setValidating] = useState(false);
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
-      onFileSelect(event.target.files[0]);
+      const file = event.target.files[0];
+      setValidating(true);
+      setLocalError(null);
+      try {
+        await validateFile(file);
+        onFileSelect(file);
+      } catch (err: any) {
+        const code = err?.message || 'validation_file_corrupt';
+        setLocalError(t(code) || code);
+      } finally {
+        setValidating(false);
+        event.target.value = '';
+      }
     }
   };
 
@@ -21,7 +87,17 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, currentPreview, o
       <div className="flex items-center justify-between mb-2.5">
         <h2 className="text-base font-bold text-gray-800">{t('step2_title')}</h2>
       </div>
-      
+
+      {localError && (
+        <div
+          role="alert"
+          className="mb-2 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-start gap-2 animate-fadeIn"
+        >
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span className="leading-snug">{localError}</span>
+        </div>
+      )}
+
       {currentPreview ? (
         <div className="bg-white rounded-xl border border-indigo-100 p-3 shadow-xs animate-fadeIn h-[232px] flex flex-col justify-between">
           <div className="flex-1 bg-gray-100/80 rounded-lg overflow-hidden relative mb-2 transparent-grid flex items-center justify-center min-h-0">
@@ -43,7 +119,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, currentPreview, o
                     type="file"
                     accept="image/png, image/jpeg, image/webp"
                     onChange={handleFileChange}
-                    disabled={disabled}
+                    disabled={disabled || validating}
                     className="hidden"
                   />
                </label>
@@ -52,23 +128,23 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, currentPreview, o
         </div>
       ) : (
         <div className={`relative border-2 border-dashed rounded-xl p-4 text-center transition-all h-[232px] flex flex-col items-center justify-center
-          ${disabled ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-gray-300 hover:border-indigo-500 hover:bg-indigo-50/10'}`}>
-          
+          ${disabled || validating ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-gray-300 hover:border-indigo-500 hover:bg-indigo-50/10'}`}>
+
           <input
             type="file"
             accept="image/png, image/jpeg, image/webp"
             onChange={handleFileChange}
-            disabled={disabled}
+            disabled={disabled || validating}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
           />
-          
+
           <div className="flex flex-col items-center justify-center space-y-2">
             <div className="p-3 bg-indigo-50 rounded-full text-indigo-600">
               <UploadCloud className="w-6 h-6" />
             </div>
             <div>
               <p className="text-sm font-semibold text-gray-900">
-                {t('step2_drag')}
+                {validating ? t('processing_title') : t('step2_drag')}
               </p>
               <p className="text-xs text-gray-500 mt-0.5">
                 {t('step2_hint')}

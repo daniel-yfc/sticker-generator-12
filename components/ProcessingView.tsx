@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 
 interface ProcessingViewProps {
   t: (key: string) => any;
   customTitle?: string;
   customMessage?: string;
+  onCancel?: () => void;
 }
 
-const ProcessingView: React.FC<ProcessingViewProps> = ({ t, customTitle, customMessage }) => {
+const ProcessingView: React.FC<ProcessingViewProps> = ({ t, customTitle, customMessage, onCancel }) => {
   const [progress, setProgress] = useState(0);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const steps = t('processing_steps');
@@ -85,6 +86,18 @@ const ProcessingView: React.FC<ProcessingViewProps> = ({ t, customTitle, customM
         <p className="text-gray-400 text-xs italic px-6">
           {progress > 80 ? "正在渲染最終像素並應用透明遮罩..." : "AI 正在理解照片細節並轉換風格，請放鬆等候。"}
         </p>
+
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-800 text-sm font-medium shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            aria-label={t('cancel')}
+          >
+            <X className="w-4 h-4" />
+            {t('cancel')}
+          </button>
+        )}
       </div>
 
       <style>{`

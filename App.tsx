@@ -1,5 +1,4 @@
-
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import StyleSelector from './components/StyleSelector';
 import FileUpload from './components/FileUpload';
@@ -11,7 +10,12 @@ import ImageEditor from './components/ImageEditor';
 import StickerSetView from './components/StickerSetView';
 import { STYLES, TRANSLATIONS } from './constants';
 import { AppStatus, StyleOption, Language, ViewMode, StickerRecord, VariationStrength } from './types';
-import { generateSticker, generateStickerSet, generateStickerVariation } from './services/geminiService';
+import {
+  generateSticker,
+  generateStickerSet,
+  generateStickerVariation,
+  GenerationCancelledError,
+} from './services/geminiService';
 import { AlertCircle, ArrowRight, Layers, Sticker, RefreshCw, Sparkles } from 'lucide-react';
 
 const HISTORY_KEY = 'sticker_maker_history_v2';
@@ -26,16 +30,21 @@ const App: React.FC = () => {
   const [lastVariationPrompt, setLastVariationPrompt] = useState<string | undefined>(undefined);
   const [generatedSet, setGeneratedSet] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  
+
   const [rawImage, setRawImage] = useState<string | null>(null);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
 
   const [view, setView] = useState<ViewMode>('create');
   const [language, setLanguage] = useState<Language>('zh-TW');
-  
+
   const [history, setHistory] = useState<StickerRecord[]>([]);
 
-  const isProcessing = status === AppStatus.PROCESSING || status === AppStatus.SET_PROCESSING || status === AppStatus.VARIATION_PROCESSING;
+  const abortRef = useRef<AbortController | null>(null);
+
+  const isProcessing =
+    status === AppStatus.PROCESSING ||
+    status === AppStatus.SET_PROCESSING ||
+    status === AppStatus.VARIATION_PROCESSING;
 
   const t = (key: string) => {
     return (TRANSLATIONS[language] as any)[key] || key;
@@ -48,7 +57,7 @@ const App: React.FC = () => {
         setHistory(JSON.parse(saved));
       }
     } catch (e) {
-      console.warn("Storage access not permitted or failed to parse:", e);
+      console.warn('Storage access not permitted or failed to parse:', e);
     }
   }, []);
 
@@ -56,9 +65,15 @@ const App: React.FC = () => {
     try {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
     } catch (e) {
-      console.warn("Storage write not permitted or quota exceeded:", e);
+      console.warn('Storage write not permitted or quota exceeded:', e);
     }
   }, [history]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const addToHistory = (
     imageUrl: string,
@@ -78,11 +93,11 @@ const App: React.FC = () => {
       variationStrength: options?.variationStrength,
       variationPrompt: options?.variationPrompt,
     };
-    setHistory(prev => [newRecord, ...prev]);
+    setHistory((prev) => [newRecord, ...prev]);
   };
 
   const deleteFromHistory = (id: string) => {
-    setHistory(prev => prev.filter(item => item.id !== id));
+    setHistory((prev) => prev.filter((item) => item.id !== id));
   };
 
   const handleStyleSelect = useCallback((style: StyleOption) => {
@@ -90,10 +105,10 @@ const App: React.FC = () => {
   }, []);
 
   const handleGallerySelect = async (styleId: number, imageUrl?: string) => {
-    const style = STYLES.find(s => s.id === styleId);
+    const style = STYLES.find((s) => s.id === styleId);
     if (style) {
       setSelectedStyle(style);
-      
+
       if (imageUrl) {
         setStatus(AppStatus.UPLOADING);
         try {
@@ -106,25 +121,25 @@ const App: React.FC = () => {
           };
           reader.readAsDataURL(blob);
         } catch (err) {
-          console.error("Failed to import gallery image", err);
+          console.error('Failed to import gallery image', err);
           setStatus(AppStatus.ERROR);
           setErrorMessage(t('error_upload'));
         }
       }
-      
+
       setView('create');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
-  const handleFileSelect = async (file: File) => {
+  const handleFileSelect = (file: File) => {
     setStatus(AppStatus.UPLOADING);
     setErrorMessage(null);
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
         setRawImage(reader.result);
-        setStatus(AppStatus.EDITING); 
+        setStatus(AppStatus.EDITING);
       }
     };
     reader.onerror = () => {
@@ -139,9 +154,16 @@ const App: React.FC = () => {
     setStatus(AppStatus.READY);
   };
 
+  const handleCancelInFlight = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setStatus(AppStatus.READY);
+    setErrorMessage(null);
+  }, []);
+
   const handleGenerate = async () => {
     if (!processedImage) return;
-    
+
     setStatus(AppStatus.PROCESSING);
     setErrorMessage(null);
     setGeneratedImage(null);
@@ -150,33 +172,40 @@ const App: React.FC = () => {
     setLastVariationStrength(undefined);
     setLastVariationPrompt(undefined);
 
-    const uiTimeout = setTimeout(() => {
-      if (status === AppStatus.PROCESSING) {
-        setErrorMessage(t("error_timeout"));
-        setStatus(AppStatus.ERROR);
-      }
-    }, 70000);
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
-      const resultImage = await generateSticker(processedImage, selectedStyle);
-      
+      const resultImage = await generateSticker(
+        processedImage,
+        selectedStyle,
+        undefined,
+        controller.signal
+      );
+
+      if (controller.signal.aborted) return;
+
       const img = new Image();
       img.onload = () => {
-          clearTimeout(uiTimeout);
-          setGeneratedImage(resultImage);
-          addToHistory(resultImage, selectedStyle.id);
-          setStatus(AppStatus.SUCCESS);
+        if (controller.signal.aborted) return;
+        abortRef.current = null;
+        setGeneratedImage(resultImage);
+        addToHistory(resultImage, selectedStyle.id);
+        setStatus(AppStatus.SUCCESS);
       };
       img.onerror = () => {
-          clearTimeout(uiTimeout);
-          setErrorMessage(t('error_process'));
-          setStatus(AppStatus.ERROR);
+        if (controller.signal.aborted) return;
+        abortRef.current = null;
+        setErrorMessage(t('error_process'));
+        setStatus(AppStatus.ERROR);
       };
       img.src = resultImage;
-
     } catch (error: any) {
-      clearTimeout(uiTimeout);
-      setErrorMessage(t(error.message));
+      abortRef.current = null;
+      if (error instanceof GenerationCancelledError || controller.signal.aborted) {
+        return;
+      }
+      setErrorMessage(t(error?.message) || t('error_process'));
       setStatus(AppStatus.ERROR);
     }
   };
@@ -189,23 +218,27 @@ const App: React.FC = () => {
     setStatus(AppStatus.VARIATION_PROCESSING);
     setErrorMessage(null);
 
-    const uiTimeout = setTimeout(() => {
-      if (status === AppStatus.VARIATION_PROCESSING) {
-        setErrorMessage(t("error_timeout"));
-        setStatus(AppStatus.ERROR);
-      }
-    }, 75000);
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
-      const resultImage = await generateStickerVariation(baseSticker, selectedStyle, {
-        strength,
-        customPrompt,
-        sourceImageBase64: processedImage || undefined
-      });
+      const resultImage = await generateStickerVariation(
+        baseSticker,
+        selectedStyle,
+        {
+          strength,
+          customPrompt,
+          sourceImageBase64: processedImage || undefined,
+        },
+        controller.signal
+      );
+
+      if (controller.signal.aborted) return;
 
       const img = new Image();
       img.onload = () => {
-        clearTimeout(uiTimeout);
+        if (controller.signal.aborted) return;
+        abortRef.current = null;
         setGeneratedImage(resultImage);
         setIsVariationResult(true);
         setLastVariationStrength(strength);
@@ -213,22 +246,25 @@ const App: React.FC = () => {
         addToHistory(resultImage, selectedStyle.id, {
           isVariation: true,
           variationStrength: strength,
-          variationPrompt: customPrompt
+          variationPrompt: customPrompt,
         });
         setStatus(AppStatus.SUCCESS);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       };
       img.onerror = () => {
-        clearTimeout(uiTimeout);
+        if (controller.signal.aborted) return;
+        abortRef.current = null;
         setErrorMessage(t('error_process'));
-        setStatus(AppStatus.SUCCESS);
+        setStatus(AppStatus.ERROR);
       };
       img.src = resultImage;
-
     } catch (error: any) {
-      clearTimeout(uiTimeout);
-      setErrorMessage(t(error.message));
-      setStatus(AppStatus.SUCCESS);
+      abortRef.current = null;
+      if (error instanceof GenerationCancelledError || controller.signal.aborted) {
+        return;
+      }
+      setErrorMessage(t(error?.message) || t('error_process'));
+      setStatus(AppStatus.ERROR);
     }
   };
 
@@ -240,24 +276,40 @@ const App: React.FC = () => {
     setGeneratedSet([]);
 
     const variations = [
-      "giving a friendly thumbs up with a big smile",
-      "looking very happy and laughing joyfully",
-      "looking surprised with wide eyes and open mouth",
-      "looking cool wearing stylish sunglasses"
+      'giving a friendly thumbs up with a big smile',
+      'looking very happy and laughing joyfully',
+      'looking surprised with wide eyes and open mouth',
+      'looking cool wearing stylish sunglasses',
     ];
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      const results = await generateStickerSet(processedImage, selectedStyle, variations);
-      results.forEach(imgUrl => addToHistory(imgUrl, selectedStyle.id));
+      const results = await generateStickerSet(
+        processedImage,
+        selectedStyle,
+        variations,
+        controller.signal
+      );
+      if (controller.signal.aborted) return;
+      results.forEach((imgUrl) => addToHistory(imgUrl, selectedStyle.id));
       setGeneratedSet(results);
       setStatus(AppStatus.SET_SUCCESS);
     } catch (error: any) {
-      setErrorMessage(t(error.message));
+      if (error instanceof GenerationCancelledError || controller.signal.aborted) {
+        return;
+      }
+      setErrorMessage(t(error?.message) || t('error_process'));
       setStatus(AppStatus.ERROR);
+    } finally {
+      abortRef.current = null;
     }
   };
 
   const handleReset = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
     setStatus(AppStatus.IDLE);
     setGeneratedImage(null);
     setPreviousSticker(null);
@@ -271,6 +323,8 @@ const App: React.FC = () => {
   };
 
   const handleReuse = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
     setStatus(AppStatus.READY);
     setGeneratedImage(null);
     setPreviousSticker(null);
@@ -281,15 +335,15 @@ const App: React.FC = () => {
     setErrorMessage(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  
+
   const handleImageUpdate = (newUrl: string) => {
     setGeneratedImage(newUrl);
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans">
-      <Header 
-        currentView={view} 
+      <Header
+        currentView={view}
         onViewChange={setView}
         currentLang={language}
         onLangChange={setLanguage}
@@ -297,10 +351,10 @@ const App: React.FC = () => {
       />
 
       <main className="flex-grow max-w-5xl mx-auto w-full px-4 py-8">
-        
+
         {view === 'gallery' ? (
-          <Gallery 
-            onSelectStyle={handleGallerySelect} 
+          <Gallery
+            onSelectStyle={handleGallerySelect}
             t={t}
             stylesTranslation={(TRANSLATIONS[language] as any).styles}
           />
@@ -314,27 +368,27 @@ const App: React.FC = () => {
                  <h2 className="text-3xl font-bold">{t('history_title')}</h2>
                  <p className="text-indigo-100 mt-1">{t('history_subtitle')}</p>
               </div>
-              <button 
+              <button
                 onClick={() => setView('create')}
                 className="md:ml-auto bg-white text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-colors shadow-lg"
               >
                 + {t('nav_create')}
               </button>
             </div>
-            <StickerHistory 
-              history={history} 
-              onDelete={deleteFromHistory} 
+            <StickerHistory
+              history={history}
+              onDelete={deleteFromHistory}
               t={t}
               stylesTranslation={(TRANSLATIONS[language] as any).styles}
             />
           </div>
         ) : (
           <div className="space-y-8 animate-fadeIn">
-            
+
             {status === AppStatus.EDITING && rawImage && (
                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
                  <div className="w-full max-w-xl">
-                   <ImageEditor 
+                   <ImageEditor
                      imageSrc={rawImage}
                      onConfirm={handleEditConfirm}
                      onCancel={() => {
@@ -377,12 +431,12 @@ const App: React.FC = () => {
                     </button>
                   </div>
                 )}
-                <ResultDisplay 
-                  imageUrl={generatedImage} 
+                <ResultDisplay
+                  imageUrl={generatedImage}
                   previousImageUrl={previousSticker}
-                  style={selectedStyle} 
-                  onReset={handleReset} 
-                  onReuse={handleReuse} 
+                  style={selectedStyle}
+                  onReset={handleReset}
+                  onReuse={handleReuse}
                   onImageUpdate={handleImageUpdate}
                   onGenerateVariation={handleGenerateVariation}
                   isGeneratingVariation={status === AppStatus.VARIATION_PROCESSING}
@@ -397,17 +451,17 @@ const App: React.FC = () => {
                       <Layers className="w-5 h-5 text-indigo-600" />
                       <h3 className="text-xl font-bold text-gray-800">當前貼圖集 (Current Set)</h3>
                    </div>
-                   <StickerHistory 
-                    history={history.slice(0, 10)} 
-                    onDelete={deleteFromHistory} 
-                    t={t} 
+                   <StickerHistory
+                    history={history.slice(0, 10)}
+                    onDelete={deleteFromHistory}
+                    t={t}
                     stylesTranslation={(TRANSLATIONS[language] as any).styles}
                   />
                 </div>
               </div>
             ) : status === AppStatus.SET_SUCCESS && generatedSet.length > 0 ? (
                <div className="space-y-12 animate-fadeIn">
-                  <StickerSetView 
+                  <StickerSetView
                     stickers={generatedSet}
                     style={selectedStyle}
                     onReset={handleReset}
@@ -419,10 +473,10 @@ const App: React.FC = () => {
                       <Layers className="w-5 h-5 text-indigo-600" />
                       <h3 className="text-xl font-bold text-gray-800">當前貼圖集 (Current Set)</h3>
                    </div>
-                   <StickerHistory 
-                    history={history.slice(0, 10)} 
-                    onDelete={deleteFromHistory} 
-                    t={t} 
+                   <StickerHistory
+                    history={history.slice(0, 10)}
+                    onDelete={deleteFromHistory}
+                    t={t}
                     stylesTranslation={(TRANSLATIONS[language] as any).styles}
                   />
                 </div>
@@ -432,9 +486,9 @@ const App: React.FC = () => {
                 {(status === AppStatus.IDLE || status === AppStatus.READY || status === AppStatus.UPLOADING || status === AppStatus.ERROR) && (
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2 order-2 lg:order-1">
-                      <StyleSelector 
-                        selectedStyle={selectedStyle} 
-                        onSelect={handleStyleSelect} 
+                      <StyleSelector
+                        selectedStyle={selectedStyle}
+                        onSelect={handleStyleSelect}
                         disabled={isProcessing}
                         t={t}
                         stylesTranslation={(TRANSLATIONS[language] as any).styles}
@@ -442,14 +496,14 @@ const App: React.FC = () => {
                     </div>
                     <div className="lg:col-span-1 order-1 lg:order-2 space-y-4">
                        <div className="sticky top-24 space-y-6">
-                          <FileUpload 
-                            onFileSelect={handleFileSelect} 
+                          <FileUpload
+                            onFileSelect={handleFileSelect}
                             currentPreview={processedImage || undefined}
                             onEditClick={() => setStatus(AppStatus.EDITING)}
                             disabled={isProcessing}
                             t={t}
                           />
-                           
+
                           {status === AppStatus.READY && (
                             <div className="space-y-3">
                               <button
@@ -479,25 +533,28 @@ const App: React.FC = () => {
                                     <p className="text-sm opacity-90">{errorMessage}</p>
                                   </div>
                                 </div>
-                                <button
-                                  onClick={handleGenerate}
-                                  className="bg-white text-red-600 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-red-50 transition-colors w-fit flex items-center gap-2"
-                                >
-                                  <RefreshCw className="w-4 h-4" />
-                                  {t('btn_retry')}
-                                </button>
+                                {processedImage && (
+                                  <button
+                                    onClick={handleGenerate}
+                                    className="bg-white text-red-600 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-red-50 transition-colors w-fit flex items-center gap-2"
+                                  >
+                                    <RefreshCw className="w-4 h-4" />
+                                    {t('btn_retry')}
+                                  </button>
+                                )}
                               </div>
                           )}
                        </div>
                     </div>
                   </div>
                 )}
-                
+
                 {isProcessing && (
-                  <ProcessingView 
-                    t={t} 
+                  <ProcessingView
+                    t={t}
                     customTitle={status === AppStatus.VARIATION_PROCESSING ? t('variation_title') : undefined}
                     customMessage={status === AppStatus.VARIATION_PROCESSING ? t('processing_variation') : undefined}
+                    onCancel={handleCancelInFlight}
                   />
                 )}
               </>

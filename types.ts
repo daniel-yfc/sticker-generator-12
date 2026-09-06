@@ -58,3 +58,10 @@ export interface StickerSet {
   sourceId: string;
   stickers: StickerRecord[];
 }
+
+export interface ValidatedFile {
+  file: File;
+  dataUrl: string;
+  width: number;
+  height: number;
+}
