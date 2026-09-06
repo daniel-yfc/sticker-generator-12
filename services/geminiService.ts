@@ -150,9 +150,15 @@ const withRetry = async <T>(
   fn: () => Promise<T>,
   signal?: AbortSignal
 ): Promise<T> => {
+  if (signal?.aborted) {
+    throw new GenerationCancelledError();
+  }
   let attempt = 0;
   while (true) {
     try {
+      if (signal?.aborted) {
+        throw new GenerationCancelledError();
+      }
       return await fn();
     } catch (err) {
       if (isAbortError(err)) throw err;
@@ -172,6 +178,9 @@ export const generateSticker = async (
   variationPrompt?: string,
   signal?: AbortSignal
 ): Promise<string> => {
+  if (signal?.aborted) {
+    throw new GenerationCancelledError();
+  }
   const base64Data = assertValidBase64Image(imageBase64);
 
   const basePrompt = `Generate a high-quality die-cut sticker of the person in the provided image.
@@ -225,7 +234,7 @@ export const generateSticker = async (
       throw new GenerationCancelledError();
     }
     logSafe(error?.message ?? "error_process");
-    throw new Error(error?.message ?? "error_process");
+    throw new Error(error?.message ?? "error_process", { cause: error });
   }
 };
 
@@ -235,6 +244,9 @@ export const generateStickerVariation = async (
   options: VariationOptions,
   signal?: AbortSignal
 ): Promise<string> => {
+  if (signal?.aborted) {
+    throw new GenerationCancelledError();
+  }
   const prevStickerData = assertValidBase64Image(previousStickerBase64);
 
   const getStrengthGuidance = (strength: VariationStrength) => {
@@ -314,7 +326,7 @@ ${options.customPrompt ? `\nUser's Custom Action/Emotion Goal: "${options.custom
       throw new GenerationCancelledError();
     }
     logSafe(error?.message ?? "error_process");
-    throw new Error(error?.message ?? "error_process");
+    throw new Error(error?.message ?? "error_process", { cause: error });
   }
 };
 

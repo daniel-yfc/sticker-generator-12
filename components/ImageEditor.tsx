@@ -120,7 +120,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ imageSrc, onConfirm, onCancel
     const dy = clientY - dragStart.y;
     
     // Adjust dx/dy based on rotation to match mouse movement
-    let rotRad = (-rotation * Math.PI) / 180;
+    const rotRad = (-rotation * Math.PI) / 180;
     const rotatedDx = dx * Math.cos(rotRad) - dy * Math.sin(rotRad);
     const rotatedDy = dx * Math.sin(rotRad) + dy * Math.cos(rotRad);
 

@@ -1,5 +1,5 @@
 
-import { StyleOption, GalleryItem, Language } from './types';
+import { StyleOption, GalleryItem } from './types';
 
 export const STYLES: StyleOption[] = [
   {
@@ -127,6 +127,9 @@ export const TRANSLATIONS = {
     history_title: "我的貼圖集",
     history_subtitle: "您在本機製作的所有貼圖",
     history_empty: "尚未製作任何貼圖。快去製作第一張吧！",
+    history_clear_all: "清除所有紀錄",
+    history_clear_confirm: "確定要清除所有已儲存的貼圖紀錄嗎？此動作無法復原。",
+    history_limit_note: "本機最多保存 50 張貼圖紀錄",
     variation_title: "基於上一張圖片生成變體",
     variation_subtitle: "保持相同的藝術風格與人物主體，依照設定的變體強度生成生動的新表情與動作！",
     variation_strength_label: "變體強度 (Variation Intensity)",
@@ -222,6 +225,9 @@ export const TRANSLATIONS = {
     history_title: "My Collection",
     history_subtitle: "All stickers you created on this device",
     history_empty: "No stickers yet. Go create your first one!",
+    history_clear_all: "Clear All History",
+    history_clear_confirm: "Are you sure you want to clear all history? This cannot be undone.",
+    history_limit_note: "Up to 50 recent stickers are saved locally",
     variation_title: "Generate Variation from Sticker",
     variation_subtitle: "Preserve the exact character and art style while varying expression and pose by intensity!",
     variation_strength_label: "Variation Intensity",
@@ -317,6 +323,9 @@ export const TRANSLATIONS = {
     history_title: "マイコレクション",
     history_subtitle: "このデバイスで作成したすべてのステッカー",
     history_empty: "まだステッカーがありません。最初の1枚を作成しましょう！",
+    history_clear_all: "すべての履歴を消去",
+    history_clear_confirm: "すべてのステッカー履歴を消去してもよろしいですか？この操作は取り消せません。",
+    history_limit_note: "最大50件のステッカーが端末に保存されます",
     variation_title: "前のステッカーからバリエーションを作成",
     variation_subtitle: "同じキャラクターとスタイルを維持し、強度を選んで新しい表情やポーズを生成！",
     variation_strength_label: "バリエーション強度",

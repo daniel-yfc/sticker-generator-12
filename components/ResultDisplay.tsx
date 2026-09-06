@@ -44,7 +44,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({
   stylesTranslation,
   isVariationResult = false,
   variationStrength: currentVariationStrength,
-  variationPrompt: currentVariationPrompt
+  variationPrompt: _currentVariationPrompt
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedStrength, setSelectedStrength] = useState<VariationStrength>('medium');

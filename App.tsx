@@ -19,6 +19,7 @@ import {
 import { AlertCircle, ArrowRight, Layers, Sticker, RefreshCw, Sparkles } from 'lucide-react';
 
 const HISTORY_KEY = 'sticker_maker_history_v2';
+const MAX_HISTORY_ITEMS = 50;
 
 const App: React.FC = () => {
   const [status, setStatus] = useState<AppStatus>(AppStatus.IDLE);
@@ -93,11 +94,20 @@ const App: React.FC = () => {
       variationStrength: options?.variationStrength,
       variationPrompt: options?.variationPrompt,
     };
-    setHistory((prev) => [newRecord, ...prev]);
+    setHistory((prev) => [newRecord, ...prev].slice(0, MAX_HISTORY_ITEMS));
   };
 
   const deleteFromHistory = (id: string) => {
     setHistory((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const clearHistory = () => {
+    setHistory([]);
+    try {
+      localStorage.removeItem(HISTORY_KEY);
+    } catch (e) {
+      console.warn('Storage clear failed:', e);
+    }
   };
 
   const handleStyleSelect = useCallback((style: StyleOption) => {
@@ -378,6 +388,7 @@ const App: React.FC = () => {
             <StickerHistory
               history={history}
               onDelete={deleteFromHistory}
+              onClearAll={clearHistory}
               t={t}
               stylesTranslation={(TRANSLATIONS[language] as any).styles}
             />
@@ -439,7 +450,7 @@ const App: React.FC = () => {
                   onReuse={handleReuse}
                   onImageUpdate={handleImageUpdate}
                   onGenerateVariation={handleGenerateVariation}
-                  isGeneratingVariation={status === AppStatus.VARIATION_PROCESSING}
+                  isGeneratingVariation={false}
                   t={t}
                   stylesTranslation={(TRANSLATIONS[language] as any).styles}
                   isVariationResult={isVariationResult}

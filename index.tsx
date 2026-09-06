@@ -24,7 +24,7 @@ class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+  public componentDidCatch(error: Error, _errorInfo: ErrorInfo): void {
     const summary = error?.message ? error.message.split('\n')[0] : 'unknown';
     console.warn('[ErrorBoundary]', summary);
   }

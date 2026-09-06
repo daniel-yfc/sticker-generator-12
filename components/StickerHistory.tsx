@@ -1,15 +1,16 @@
 import React from 'react';
-import { StickerRecord, StyleOption } from '../types';
+import { StickerRecord } from '../types';
 import { Download, Trash2, Clock } from 'lucide-react';
 
 interface StickerHistoryProps {
   history: StickerRecord[];
   onDelete: (id: string) => void;
+  onClearAll?: () => void;
   t: (key: string) => any;
   stylesTranslation: any;
 }
 
-const StickerHistory: React.FC<StickerHistoryProps> = ({ history, onDelete, t, stylesTranslation }) => {
+const StickerHistory: React.FC<StickerHistoryProps> = ({ history, onDelete, onClearAll, t, stylesTranslation }) => {
   if (history.length === 0) {
     return (
       <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-300">
@@ -23,14 +24,30 @@ const StickerHistory: React.FC<StickerHistoryProps> = ({ history, onDelete, t, s
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">{t('history_title')}</h2>
-          <p className="text-sm text-gray-500">{t('history_subtitle')}</p>
+          <p className="text-sm text-gray-500">{t('history_subtitle')} · {t('history_limit_note')}</p>
         </div>
-        <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold">
-          {history.length} Items
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold">
+            {history.length} / 50
+          </span>
+          {onClearAll && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(t('history_clear_confirm'))) {
+                  onClearAll();
+                }
+              }}
+              className="px-3 py-1 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-lg transition-colors flex items-center gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {t('history_clear_all')}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
