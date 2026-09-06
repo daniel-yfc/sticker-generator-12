@@ -1,0 +1,6 @@
+{
+  "name": "Sticker Maker Pro",
+  "description": "Convert portrait photos into high-quality, stylized stickers using AI. Supports unique artistic styles with automatic background removal and intensity-controlled sticker variations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
