@@ -43,6 +43,8 @@ npm run preview    # serve dist/ locally
 
 ```bash
 npm run typecheck  # tsc --noEmit; runs in CI
+npm run lint       # eslint .; runs in CI
+npm run test       # vitest run; runs in CI
 ```
 
 ---
@@ -113,19 +115,17 @@ Uploaded images stay in your browser — they are sent directly to the Gemini AP
 
 ## Known limitations
 
-- No automated test suite yet (Vitest/RTL is on the roadmap).
-- No ESLint or formatter configured.
-- `App.tsx` is a single large orchestrator; a future refactor will extract a reducer or custom hooks.
-- `constants.ts` and `components/ResultDisplay.tsx` are large and good candidates for splitting.
-- The API key is bundled into the client; see "Security model".
+- `App.tsx` is a coordinator component; a future refactor can extract domain workflow logic into a custom hook or reducer.
+- `constants.ts` is large and a candidate for splitting into modular files.
+- The API key is bundled into the client for local prototyping; see "Security model".
 
 ## Roadmap
 
-Priorities from the latest external review (`review_notes/7e82da1c.md`):
+Priorities based on external architecture and security reviews:
 
-- **P0 (in progress / this pass):** env-var consistency, error boundary, abort + cancel, retry classification, input validation, README, CI gate.
-- **P1:** Vitest + React Testing Library, ESLint + typecheck in CI, refactor `ResultDisplay.tsx` and `App.tsx`, accessibility audit, history retention policy.
-- **P2:** observability (without sensitive content), CSP / deployment hardening, Dependabot, low-memory mobile performance, end-to-end tests.
+- **P0 (Completed):** env-var consistency, error boundary, abort + cancel, retry classification, input validation, `.gitignore` secret exclusion, README, CI gate.
+- **P1 (Completed/In Progress):** Vitest + React Testing Library (14 unit/component tests), ESLint flat config, full CI gate (`lint` + `typecheck` + `test` + `build`), history retention limit (50 max) + clear all, accessibility (a11y) improvements, component modularization.
+- **P2:** observability (without sensitive content), CSP / deployment hardening, Dependabot, governance (LICENSE, SECURITY, CONTRIBUTING), low-memory mobile performance, end-to-end tests.
 
 ## Privacy and AI-generated content
 

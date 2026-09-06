@@ -37,9 +37,9 @@ describe('StyleSelector component', () => {
       />
     );
 
-    const buttons = screen.getAllByRole('button');
-    if (buttons.length > 1) {
-      fireEvent.click(buttons[1]);
+    const items = screen.getAllByRole('radio');
+    if (items.length > 1) {
+      fireEvent.click(items[1]);
       expect(handleSelect).toHaveBeenCalledTimes(1);
     }
   });

@@ -23,7 +23,19 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, currentLang,
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           
           {/* Logo & Title */}
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => onViewChange('create')}>
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label="Home"
+            className="flex items-center gap-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-lg"
+            onClick={() => onViewChange('create')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onViewChange('create');
+              }
+            }}
+          >
             <div className="bg-indigo-600 p-2 rounded-lg shrink-0">
               <Sticker className="w-6 h-6 text-white" />
             </div>
@@ -55,7 +67,11 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, currentLang,
             <div className="flex items-center gap-3">
               {/* Language Switcher */}
               <div className="relative group">
-                <button className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700 px-2 py-1 rounded-md transition-colors">
+                <button
+                  type="button"
+                  aria-label="Language selector"
+                  className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700 px-2 py-1 rounded-md transition-colors"
+                >
                   <Globe className="w-4 h-4" />
                   <span className="text-xs font-bold uppercase">{currentLang}</span>
                 </button>

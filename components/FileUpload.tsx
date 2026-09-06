@@ -109,7 +109,13 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, currentPreview, o
              </span>
              <div className="flex gap-1.5">
                {onEditClick && (
-                 <button onClick={onEditClick} className="p-1.5 text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors" title={t('step2_reedit')}>
+                 <button
+                   type="button"
+                   onClick={onEditClick}
+                   className="p-1.5 text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors"
+                   title={t('step2_reedit')}
+                   aria-label={t('step2_reedit')}
+                 >
                    <Edit className="w-3.5 h-3.5" />
                  </button>
                )}

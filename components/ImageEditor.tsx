@@ -150,7 +150,12 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ imageSrc, onConfirm, onCancel
           <Move className="w-4 h-4 text-indigo-600" />
           {t('editor_title')}
         </h3>
-        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-gray-400 hover:text-gray-600"
+          aria-label={t('cancel') || 'Close'}
+        >
           <X className="w-5 h-5" />
         </button>
       </div>
@@ -158,6 +163,8 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ imageSrc, onConfirm, onCancel
       <div className="p-4 bg-gray-100 flex justify-center overflow-hidden touch-none relative">
         <canvas
           ref={canvasRef}
+          role="img"
+          aria-label="Image editor canvas"
           className="rounded-lg shadow-sm cursor-move bg-white"
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}

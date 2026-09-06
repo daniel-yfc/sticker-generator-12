@@ -27,7 +27,11 @@ const StyleSelector: React.FC<StyleSelectorProps> = ({ selectedStyle, onSelect, 
         </span>
       </div>
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      <div
+        role="radiogroup"
+        aria-label={t('step1_title')}
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"
+      >
         {STYLES.map((style) => {
           const isSelected = selectedStyle.id === style.id;
           const styleInfo = stylesTranslation?.[style.id] || { name: `Style #${style.id}`, features: '' };
@@ -38,6 +42,8 @@ const StyleSelector: React.FC<StyleSelectorProps> = ({ selectedStyle, onSelect, 
           return (
             <button
               key={style.id}
+              role="radio"
+              aria-checked={isSelected}
               onClick={() => onSelect(style)}
               disabled={disabled}
               title={`${styleInfo.name} - ${styleInfo.features}`}
