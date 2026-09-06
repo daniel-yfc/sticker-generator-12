@@ -33,18 +33,20 @@ const Gallery: React.FC<GalleryProps> = ({ onSelectStyle, t, stylesTranslation }
                   loading="lazy"
                 />
                 
-                {/* Overlay on hover */}
-                <div className="absolute inset-0 bg-indigo-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-3 p-4">
-                  <button 
+                {/* Overlay on hover and keyboard focus */}
+                <div className="absolute inset-0 bg-indigo-900/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center gap-3 p-4">
+                  <button
+                    type="button"
                     onClick={() => onSelectStyle(item.styleId)}
-                    className="w-full bg-white text-indigo-600 px-4 py-2.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 shadow-xl hover:scale-105"
+                    className="w-full bg-white text-indigo-600 px-4 py-2.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transform translate-y-4 group-hover:translate-y-0 group-focus-within:translate-y-0 transition-all duration-300 shadow-xl hover:scale-105 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
                     <PlayCircle className="w-5 h-5" />
                     {t('gallery_btn_try')}
                   </button>
-                  <button 
+                  <button
+                    type="button"
                     onClick={() => onSelectStyle(item.styleId, item.imageUrl)}
-                    className="w-full bg-indigo-600 text-white px-4 py-2.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-all duration-500 shadow-xl hover:bg-indigo-700 hover:scale-105"
+                    className="w-full bg-indigo-600 text-white px-4 py-2.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transform translate-y-4 group-hover:translate-y-0 group-focus-within:translate-y-0 transition-all duration-500 shadow-xl hover:bg-indigo-700 hover:scale-105 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
                     <DownloadCloud className="w-5 h-5" />
                     {t('gallery_btn_import')}

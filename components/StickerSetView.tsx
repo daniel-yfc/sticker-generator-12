@@ -36,15 +36,17 @@ const StickerSetView: React.FC<StickerSetViewProps> = ({ stickers, style, onRese
           </div>
           <div className="flex gap-3">
              <button
+              type="button"
               onClick={onReset}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium transition-colors cursor-pointer"
             >
               <RefreshCcw className="w-4 h-4" />
               {t('btn_reset')}
             </button>
             <button
+              type="button"
               onClick={handleDownloadAll}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-md"
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-md cursor-pointer"
             >
               <Download className="w-4 h-4" />
               {t('btn_download')}
@@ -57,20 +59,21 @@ const StickerSetView: React.FC<StickerSetViewProps> = ({ stickers, style, onRese
              {stickers.map((url, idx) => (
                <div key={idx} className="group relative">
                  <div className="aspect-square bg-gray-100 transparent-grid rounded-xl overflow-hidden border border-gray-200 shadow-sm p-4 hover:border-indigo-200 transition-colors">
-                   <img 
-                     src={url} 
-                     alt={`Sticker variation ${idx + 1}`} 
+                   <img
+                     src={url}
+                     alt={`Sticker variation ${idx + 1}`}
                      className="w-full h-full object-contain drop-shadow-md transition-transform group-hover:scale-110"
                    />
                  </div>
                  <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-sm">
                    <Check className="w-4 h-4 text-green-600" />
                  </div>
-                 <a 
-                   href={url} 
+                 <a
+                   href={url}
                    download={`sticker-variation-${idx}.png`}
-                   className="absolute bottom-2 right-2 bg-indigo-600 text-white p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:bg-indigo-700"
+                   className="absolute bottom-2 right-2 bg-indigo-600 text-white p-2 rounded-lg opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shadow-lg hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
                    title={t('btn_download')}
+                   aria-label={`${t('btn_download')} #${idx + 1}`}
                  >
                    <Download className="w-4 h-4" />
                  </a>

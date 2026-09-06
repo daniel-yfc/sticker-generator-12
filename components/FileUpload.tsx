@@ -10,6 +10,7 @@ interface FileUploadProps {
 }
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_DIMENSION_PX = 8192;
 const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/webp'] as const;
 const MIN_MAGIC_BYTES = 8;
 
@@ -42,7 +43,41 @@ const readAsDataURL = (file: File): Promise<string> =>
     reader.readAsDataURL(file);
   });
 
-export const validateFile = async (file: File): Promise<{ dataUrl: string; mime: string }> => {
+export const decodeImageAndValidateDimensions = (
+  dataUrl: string
+): Promise<{ width: number; height: number }> =>
+  new Promise((resolve, reject) => {
+    if (typeof Image === 'undefined') {
+      resolve({ width: 512, height: 512 });
+      return;
+    }
+    const img = new Image();
+    let settled = false;
+
+    img.onload = () => {
+      if (settled) return;
+      settled = true;
+      const width = img.naturalWidth || img.width;
+      const height = img.naturalHeight || img.height;
+      if (width > MAX_DIMENSION_PX || height > MAX_DIMENSION_PX) {
+        reject(new Error('validation_file_size'));
+        return;
+      }
+      resolve({ width: width || 512, height: height || 512 });
+    };
+
+    img.onerror = () => {
+      if (settled) return;
+      settled = true;
+      reject(new Error('validation_file_corrupt'));
+    };
+
+    img.src = dataUrl;
+  });
+
+export const validateFile = async (
+  file: File
+): Promise<{ dataUrl: string; mime: string; width: number; height: number }> => {
   if (!ALLOWED_MIME.includes(file.type as (typeof ALLOWED_MIME)[number])) {
     throw new Error('validation_file_type');
   }
@@ -57,7 +92,8 @@ export const validateFile = async (file: File): Promise<{ dataUrl: string; mime:
     throw new Error('validation_file_corrupt');
   }
   const dataUrl = await readAsDataURL(file);
-  return { dataUrl, mime: file.type };
+  const { width, height } = await decodeImageAndValidateDimensions(dataUrl);
+  return { dataUrl, mime: file.type, width, height };
 };
 
 const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, currentPreview, onEditClick, disabled, t }) => {
