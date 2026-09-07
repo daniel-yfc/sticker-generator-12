@@ -1,20 +1,22 @@
 import { GoogleGenAI } from '@google/genai';
 import { StickerProvider, VariationStrength } from './types';
 
-const ENV = (globalThis as any).process?.env || {};
+const getEnv = (): Record<string, string | undefined> =>
+  ((globalThis as any).process?.env as Record<string, string | undefined>) || {};
 
 const parseList = (val: string | undefined): string[] =>
   (val || '').split(',').map((s: string) => s.trim()).filter(Boolean);
 
-const GEMINI_KEYS = parseList(ENV.GEMINI_API_KEY);
-const GEMINI_MODELS = parseList(ENV.GEMINI_MODEL || 'gemini-2.5-flash-image');
+const getGeminiKeys = (): string[] => parseList(getEnv().GEMINI_API_KEY);
+const getGeminiModels = (): string[] => parseList(getEnv().GEMINI_MODEL || 'gemini-2.5-flash-image');
 
 const DEFAULT_TIMEOUT_MS = 60000;
 const VARIATION_TIMEOUT_MS = 65000;
 
 const getRandomKey = (): string => {
-  if (GEMINI_KEYS.length === 0) return '';
-  return GEMINI_KEYS[Math.floor(Math.random() * GEMINI_KEYS.length)];
+  const keys = getGeminiKeys();
+  if (keys.length === 0) return '';
+  return keys[Math.floor(Math.random() * keys.length)];
 };
 
 const withTimeout = <T>(promise: Promise<T>, ms: number, signal?: AbortSignal): Promise<T> => {
@@ -64,7 +66,7 @@ export const geminiProvider: StickerProvider = {
   async generateSticker(imageBase64, style, variationPrompt, signal, modelOverride) {
     const apiKey = getRandomKey();
     if (!apiKey) throw new Error('error_process');
-    const model = modelOverride || GEMINI_MODELS[0];
+    const model = modelOverride || getGeminiModels()[0];
     const ai = new GoogleGenAI({ apiKey });
     const base64Data = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
     const basePrompt = `Generate a high-quality die-cut sticker of the person in the provided image.\nART STYLE: ${style.prompt}.\nCRITICAL INSTRUCTIONS:\n1. TRANSFORM into a stylistic illustration matching the Art Style.\n2. DO NOT produce a realistic photo.\n3. SIMPLIFY details to match sticker aesthetic.\n4. Add a thick, clean WHITE BORDER (die-cut style).\n5. Use a solid white background.`;
@@ -84,10 +86,10 @@ export const geminiProvider: StickerProvider = {
   async generateStickerVariation(previousStickerBase64, style, options, signal, modelOverride) {
     const apiKey = getRandomKey();
     if (!apiKey) throw new Error('error_process');
-    const model = modelOverride || GEMINI_MODELS[0];
+    const model = modelOverride || getGeminiModels()[0];
     const ai = new GoogleGenAI({ apiKey });
     const prevData = previousStickerBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
-    const prompt = `You are a master sticker artist.\nTASK: Generate a NEW STICKER VARIATION based on the provided reference sticker.\nCRITICAL INSTRUCTIONS:\n1. SAME CHARACTER: exact same facial structure, hair, eye shape, age.\n2. SAME ART STYLE: ${style.prompt}.\n3. VARIATION SPECIFICATIONS:\n${getStrengthGuidance(options.strength)}\n${options.customPrompt ? `\nUser's Custom Goal: "${options.customPrompt}".` : ''}\n4. STICKER REQUIREMENTS: thick white die-cut border, solid white background, 1:1, stylized artwork.`;
+    const prompt = `You are a master sticker artist.\nTASK: Generate a NEW STICKER VARIATION based on the provided reference sticker.\nCRITICAL INSTRUCTIONS:\n1. SAME CHARACTER: exact same facial structure, hair, eye shape, age.\n2. SAME ART STYLE: ${style.prompt}.\n3. VARIATION SPECIFICATIONS:\n${getStrengthGuidance(options.strength)}\n${options.customPrompt ? `\nUser's Custom Goal: \"${options.customPrompt}\".` : ''}\n4. STICKER REQUIREMENTS: thick white die-cut border, solid white background, 1:1, stylized artwork.`;
     const parts: any[] = [{ text: prompt }, { inlineData: { mimeType: 'image/png', data: prevData } }];
     if (options.sourceImageBase64) {
       const srcData = options.sourceImageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');

@@ -76,18 +76,23 @@ const isProviderAvailable = (key: string): boolean => {
   return envVar ? parseList(getEnv()[envVar]).length > 0 : false;
 };
 
-export function getProvider(): StickerProvider {
-  const primary = PROVIDER_ORDER.find((p) => p.key === getAIProvider()) || PROVIDER_ORDER[0];
+export function getProvider(preferredProvider?: string): StickerProvider {
+  const key = (preferredProvider || getAIProvider()).toLowerCase();
+  const primary = PROVIDER_ORDER.find((p) => p.key === key) || PROVIDER_ORDER[0];
   return primary.factory();
 }
 
-export function getProviderChain(): StickerProvider[] {
-  const primaryKey = getAIProvider();
+export function getProviderChain(preferredProvider?: string): StickerProvider[] {
+  const primaryKey = (preferredProvider || getAIProvider()).toLowerCase();
   const ordered = [
     ...PROVIDER_ORDER.filter((p) => p.key === primaryKey),
     ...PROVIDER_ORDER.filter((p) => p.key !== primaryKey),
   ];
   return ordered.filter((p) => isProviderAvailable(p.key)).map((p) => p.factory());
+}
+
+export function getAvailableProviders(): string[] {
+  return PROVIDER_ORDER.filter((p) => isProviderAvailable(p.key)).map((p) => p.key);
 }
 
 export function getAvailableModels(providerKey: string): string[] {
