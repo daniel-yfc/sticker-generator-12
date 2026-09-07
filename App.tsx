@@ -9,7 +9,7 @@ import StickerHistory from './components/StickerHistory';
 import ImageEditor from './components/ImageEditor';
 import StickerSetView from './components/StickerSetView';
 import { STYLES, TRANSLATIONS } from './constants';
-import { AppStatus, StyleOption, Language, ViewMode, StickerRecord, VariationStrength } from './types';
+import { AppStatus, StyleOption, Language, ViewMode, StickerRecord, VariationStrength, ProviderSettings } from './types';
 import { generateSticker, generateStickerSet, generateStickerVariation, GenerationCancelledError, getLastProviderMetadata } from './services/stickerService';
 import { AlertCircle, ArrowRight, Layers, Sticker, RefreshCw, Sparkles } from 'lucide-react';
 
@@ -32,6 +32,7 @@ const App: React.FC = () => {
 
   const [view, setView] = useState<ViewMode>('create');
   const [language, setLanguage] = useState<Language>('zh-TW');
+  const [providerSettings, setProviderSettings] = useState<ProviderSettings>({ provider: 'gemini' });
 
   const [history, setHistory] = useState<StickerRecord[]>([]);
 
@@ -185,7 +186,13 @@ const App: React.FC = () => {
     abortRef.current = controller;
 
     try {
-      const resultImage = await generateSticker(processedImage, selectedStyle, undefined, controller.signal);
+      const resultImage = await generateSticker(
+        processedImage,
+        selectedStyle,
+        undefined,
+        controller.signal,
+        providerSettings.model
+      );
 
       if (controller.signal.aborted) return;
 
@@ -236,7 +243,8 @@ const App: React.FC = () => {
           customPrompt,
           sourceImageBase64: processedImage || undefined,
         },
-        controller.signal
+        controller.signal,
+        providerSettings.model
       );
 
       if (controller.signal.aborted) return;
@@ -296,7 +304,13 @@ const App: React.FC = () => {
     abortRef.current = controller;
 
     try {
-      const results = await generateStickerSet(processedImage, selectedStyle, variations, controller.signal);
+      const results = await generateStickerSet(
+        processedImage,
+        selectedStyle,
+        variations,
+        controller.signal,
+        providerSettings.model
+      );
       if (controller.signal.aborted) return;
       const meta = getLastProviderMetadata();
       results.forEach((imgUrl) => addToHistory(imgUrl, selectedStyle.id, { provider: meta?.provider, model: meta?.model }));
@@ -354,6 +368,7 @@ const App: React.FC = () => {
         currentLang={language}
         onLangChange={setLanguage}
         t={t}
+        onProviderSettingsChange={setProviderSettings}
       />
 
       <main className="flex-grow max-w-5xl mx-auto w-full px-4 py-8">
