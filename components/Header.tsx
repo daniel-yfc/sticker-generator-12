@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Sticker, Globe, Settings } from 'lucide-react';
 import { Language, ViewMode, ProviderSettings } from '../types';
-import { getAvailableModels } from '../services/providers/registry';
+import { getProviderConfig, ProviderPublicConfig } from '../services/stickerService';
 
 interface HeaderProps {
   currentView: ViewMode;
@@ -14,6 +14,17 @@ interface HeaderProps {
 
 const PROVIDER_SETTINGS_KEY = 'sticker_maker_provider_settings';
 
+// Fallback list used until /api/config responds (or if it fails). Models are
+// intentionally empty: the server then applies its own default model.
+const STATIC_PROVIDERS: ProviderPublicConfig[] = [
+  { key: 'gemini', label: 'Google Gemini', models: [] },
+  { key: 'venice', label: 'Venice.AI', models: [] },
+  { key: 'genspake', label: 'Genspake', models: [] },
+  { key: 'nvidia-nim', label: 'NVIDIA NIM', models: [] },
+  { key: 'openrouter', label: 'OpenRouter', models: [] },
+  { key: 'huggingface', label: 'Hugging Face', models: [] },
+];
+
 const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, currentLang, onLangChange, t, onProviderSettingsChange }) => {
   const navItems: { id: ViewMode; label: string }[] = [
     { id: 'create', label: t('nav_create') },
@@ -24,6 +35,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, currentLang,
   const [showSettings, setShowSettings] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<string>('gemini');
   const [selectedModel, setSelectedModel] = useState<string>('');
+  const [providerOptions, setProviderOptions] = useState<ProviderPublicConfig[]>(STATIC_PROVIDERS);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
 
   useEffect(() => {
@@ -40,12 +52,32 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, currentLang,
   }, []);
 
   useEffect(() => {
-    const models = getAvailableModels(selectedProvider);
+    let cancelled = false;
+    getProviderConfig()
+      .then((cfg) => {
+        if (cancelled || !cfg.providers || cfg.providers.length === 0) return;
+        setProviderOptions(cfg.providers);
+        // If the saved provider has no server-side key, fall back to the server default.
+        setSelectedProvider((prev) =>
+          cfg.providers.some((p) => p.key === prev) ? prev : cfg.defaultProvider
+        );
+      })
+      .catch(() => {
+        // Config endpoint unreachable — keep static list; generation errors
+        // will surface with a clear server message at call time.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const models = providerOptions.find((p) => p.key === selectedProvider)?.models || [];
     setAvailableModels(models);
     if (models.length > 0 && !models.includes(selectedModel)) {
       setSelectedModel(models[0]);
     }
-  }, [selectedProvider]);
+  }, [selectedProvider, providerOptions]);
 
   useEffect(() => {
     if (onProviderSettingsChange) {
@@ -138,12 +170,9 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, currentLang,
                           onChange={(e) => setSelectedProvider(e.target.value)}
                           className="mt-1 w-full px-2 py-1 text-sm border border-gray-200 rounded-md"
                         >
-                          <option value="gemini">Google Gemini</option>
-                          <option value="venice">Venice.AI</option>
-                          <option value="genspake">Genspake</option>
-                          <option value="nvidia-nim">NVIDIA NIM</option>
-                          <option value="openrouter">OpenRouter</option>
-                          <option value="huggingface">Hugging Face</option>
+                          {providerOptions.map((p) => (
+                            <option key={p.key} value={p.key}>{p.label}</option>
+                          ))}
                         </select>
                       </div>
                       <div>
@@ -153,6 +182,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, currentLang,
                           onChange={(e) => setSelectedModel(e.target.value)}
                           className="mt-1 w-full px-2 py-1 text-sm border border-gray-200 rounded-md"
                         >
+                          {availableModels.length === 0 && <option value="">server default</option>}
                           {availableModels.map((m) => (
                             <option key={m} value={m}>{m}</option>
                           ))}
