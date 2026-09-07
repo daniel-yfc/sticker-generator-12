@@ -10,7 +10,7 @@ import ImageEditor from './components/ImageEditor';
 import StickerSetView from './components/StickerSetView';
 import { STYLES, TRANSLATIONS } from './constants';
 import { AppStatus, StyleOption, Language, ViewMode, StickerRecord, VariationStrength } from './types';
-import { generateSticker, generateStickerSet, generateStickerVariation, GenerationCancelledError } from './services/stickerService';
+import { generateSticker, generateStickerSet, generateStickerVariation, GenerationCancelledError, getLastProviderMetadata } from './services/stickerService';
 import { AlertCircle, ArrowRight, Layers, Sticker, RefreshCw, Sparkles } from 'lucide-react';
 
 const HISTORY_KEY = 'sticker_maker_history_v2';
@@ -78,6 +78,8 @@ const App: React.FC = () => {
       isVariation?: boolean;
       variationStrength?: VariationStrength;
       variationPrompt?: string;
+      provider?: string;
+      model?: string;
     }
   ) => {
     const newRecord: StickerRecord = {
@@ -88,6 +90,8 @@ const App: React.FC = () => {
       isVariation: options?.isVariation,
       variationStrength: options?.variationStrength,
       variationPrompt: options?.variationPrompt,
+      provider: options?.provider,
+      model: options?.model,
     };
     setHistory((prev) => [newRecord, ...prev].slice(0, MAX_HISTORY_ITEMS));
   };
@@ -185,12 +189,14 @@ const App: React.FC = () => {
 
       if (controller.signal.aborted) return;
 
+      const meta = getLastProviderMetadata();
+
       const img = new Image();
       img.onload = () => {
         if (controller.signal.aborted) return;
         abortRef.current = null;
         setGeneratedImage(resultImage);
-        addToHistory(resultImage, selectedStyle.id);
+        addToHistory(resultImage, selectedStyle.id, { provider: meta?.provider, model: meta?.model });
         setStatus(AppStatus.SUCCESS);
       };
       img.onerror = () => {
@@ -235,6 +241,8 @@ const App: React.FC = () => {
 
       if (controller.signal.aborted) return;
 
+      const meta = getLastProviderMetadata();
+
       const img = new Image();
       img.onload = () => {
         if (controller.signal.aborted) return;
@@ -247,6 +255,8 @@ const App: React.FC = () => {
           isVariation: true,
           variationStrength: strength,
           variationPrompt: customPrompt,
+          provider: meta?.provider,
+          model: meta?.model,
         });
         setStatus(AppStatus.SUCCESS);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -288,7 +298,8 @@ const App: React.FC = () => {
     try {
       const results = await generateStickerSet(processedImage, selectedStyle, variations, controller.signal);
       if (controller.signal.aborted) return;
-      results.forEach((imgUrl) => addToHistory(imgUrl, selectedStyle.id));
+      const meta = getLastProviderMetadata();
+      results.forEach((imgUrl) => addToHistory(imgUrl, selectedStyle.id, { provider: meta?.provider, model: meta?.model }));
       setGeneratedSet(results);
       setStatus(AppStatus.SET_SUCCESS);
     } catch (error: any) {

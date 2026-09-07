@@ -1,4 +1,3 @@
-
 export interface StyleOption {
   id: number;
   prompt: string;
@@ -52,6 +51,8 @@ export interface StickerRecord {
   isVariation?: boolean;
   variationStrength?: VariationStrength;
   variationPrompt?: string;
+  provider?: string;
+  model?: string;
 }
 
 export interface StickerSet {
