@@ -50,20 +50,44 @@ const hfInferenceConfig = {
   authPrefix: 'Bearer ',
 };
 
-export function getProvider(): StickerProvider {
-  switch (AI_PROVIDER) {
-    case 'venice':
-      return createOpenAICompatibleProvider(veniceConfig);
-    case 'genspake':
-      return createOpenAICompatibleProvider(genspakeConfig);
-    case 'nvidia-nim':
-      return createOpenAICompatibleProvider(nvidiaNimConfig);
-    case 'openrouter':
-      return createOpenAICompatibleProvider(openRouterConfig);
-    case 'huggingface':
-      return createOpenAICompatibleProvider(hfInferenceConfig);
+const PROVIDER_ORDER: Array<{ key: string; factory: () => StickerProvider }> = [
+  { key: 'gemini', factory: () => geminiProvider },
+  { key: 'venice', factory: () => createOpenAICompatibleProvider(veniceConfig) },
+  { key: 'openrouter', factory: () => createOpenAICompatibleProvider(openRouterConfig) },
+  { key: 'nvidia-nim', factory: () => createOpenAICompatibleProvider(nvidiaNimConfig) },
+  { key: 'genspake', factory: () => createOpenAICompatibleProvider(genspakeConfig) },
+  { key: 'huggingface', factory: () => createOpenAICompatibleProvider(hfInferenceConfig) },
+];
+
+const isProviderAvailable = (key: string): boolean => {
+  switch (key) {
     case 'gemini':
+      return !!ENV.GEMINI_API_KEY;
+    case 'venice':
+      return !!ENV.VENICE_API_KEY;
+    case 'genspake':
+      return !!ENV.GENSPAKE_API_KEY;
+    case 'nvidia-nim':
+      return !!ENV.NVIDIA_NIM_API_KEY;
+    case 'openrouter':
+      return !!ENV.OPENROUTER_API_KEY;
+    case 'huggingface':
+      return !!ENV.HUGGINGFACE_API_KEY;
     default:
-      return geminiProvider;
+      return false;
   }
+};
+
+export function getProvider(): StickerProvider {
+  const primary = PROVIDER_ORDER.find((p) => p.key === AI_PROVIDER) || PROVIDER_ORDER[0];
+  return primary.factory();
+}
+
+export function getProviderChain(): StickerProvider[] {
+  const primaryKey = AI_PROVIDER;
+  const ordered = [
+    ...PROVIDER_ORDER.filter((p) => p.key === primaryKey),
+    ...PROVIDER_ORDER.filter((p) => p.key !== primaryKey),
+  ];
+  return ordered.filter((p) => isProviderAvailable(p.key)).map((p) => p.factory());
 }

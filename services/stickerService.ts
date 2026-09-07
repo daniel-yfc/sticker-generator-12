@@ -2,7 +2,7 @@
 // App.tsx should import from this file going forward.
 
 import { StyleOption, VariationOptions } from './types';
-import { getProvider } from './providers/registry';
+import { getProviderChain } from './providers/registry';
 
 export class GenerationCancelledError extends Error {
   constructor() {
@@ -17,16 +17,34 @@ export function getLastProviderMetadata(): { provider: string; model: string } |
   return lastProviderMetadata;
 }
 
+const isAbortError = (err: unknown): boolean => {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { name?: string; message?: string };
+  return e.name === 'GenerationCancelledError' || /cancelled|canceled|aborted/i.test(e.message || '');
+};
+
 export async function generateSticker(
   imageBase64: string,
   style: StyleOption,
   variationPrompt?: string,
   signal?: AbortSignal
 ): Promise<string> {
-  const provider = getProvider();
-  const result = await provider.generateSticker(imageBase64, style, variationPrompt, signal);
-  lastProviderMetadata = { provider: result.provider, model: result.model };
-  return result.imageUrl;
+  const chain = getProviderChain();
+  let lastError: unknown = null;
+
+  for (const provider of chain) {
+    try {
+      const result = await provider.generateSticker(imageBase64, style, variationPrompt, signal);
+      lastProviderMetadata = { provider: result.provider, model: result.model };
+      return result.imageUrl;
+    } catch (err) {
+      if (isAbortError(err)) throw err;
+      lastError = err;
+      // Continue to next provider
+    }
+  }
+
+  throw lastError || new Error('error_process');
 }
 
 export async function generateStickerVariation(
@@ -35,10 +53,21 @@ export async function generateStickerVariation(
   options: VariationOptions,
   signal?: AbortSignal
 ): Promise<string> {
-  const provider = getProvider();
-  const result = await provider.generateStickerVariation(previousStickerBase64, style, options, signal);
-  lastProviderMetadata = { provider: result.provider, model: result.model };
-  return result.imageUrl;
+  const chain = getProviderChain();
+  let lastError: unknown = null;
+
+  for (const provider of chain) {
+    try {
+      const result = await provider.generateStickerVariation(previousStickerBase64, style, options, signal);
+      lastProviderMetadata = { provider: result.provider, model: result.model };
+      return result.imageUrl;
+    } catch (err) {
+      if (isAbortError(err)) throw err;
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error('error_process');
 }
 
 export async function generateStickerSet(
@@ -47,8 +76,19 @@ export async function generateStickerSet(
   variations: string[],
   signal?: AbortSignal
 ): Promise<string[]> {
-  const provider = getProvider();
-  const results = await provider.generateStickerSet(sourceImageBase64, style, variations, signal);
-  lastProviderMetadata = results.length > 0 ? { provider: results[0].provider, model: results[0].model } : null;
-  return results.map((r) => r.imageUrl);
+  const chain = getProviderChain();
+  let lastError: unknown = null;
+
+  for (const provider of chain) {
+    try {
+      const results = await provider.generateStickerSet(sourceImageBase64, style, variations, signal);
+      lastProviderMetadata = results.length > 0 ? { provider: results[0].provider, model: results[0].model } : null;
+      return results.map((r) => r.imageUrl);
+    } catch (err) {
+      if (isAbortError(err)) throw err;
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error('error_process');
 }
