@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { StickerProvider, StickerProviderResult, StyleOption, VariationOptions, VariationStrength } from './types';
+import { StickerProvider, VariationStrength } from './types';
 
 const ENV = (globalThis as any).process?.env || {};
 

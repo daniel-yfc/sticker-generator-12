@@ -1,7 +1,7 @@
 // Facade preserving the existing geminiService export signatures.
 // App.tsx should import from this file going forward.
 
-import { StyleOption, VariationOptions } from './types';
+import { StyleOption, VariationOptions } from '../types';
 import { getProviderChain } from './providers/registry';
 
 export class GenerationCancelledError extends Error {

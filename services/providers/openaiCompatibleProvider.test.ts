@@ -15,7 +15,7 @@ describe('openaiCompatibleProvider', () => {
     name: 'test-provider',
     baseURL: 'https://api.test.ai',
     apiKeyEnv: 'TEST_API_KEY',
-    model: 'test-model',
+    models: ['test-model'],
     supportsEdits: false,
   };
 

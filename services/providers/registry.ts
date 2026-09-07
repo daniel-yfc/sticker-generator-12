@@ -2,9 +2,10 @@ import { StickerProvider } from './types';
 import { geminiProvider } from './geminiProvider';
 import { createOpenAICompatibleProvider } from './openaiCompatibleProvider';
 
-const ENV = (globalThis as any).process?.env || {};
+const getEnv = (): Record<string, string | undefined> =>
+  ((globalThis as any).process?.env as Record<string, string | undefined>) || {};
 
-const AI_PROVIDER = (ENV.AI_PROVIDER || 'gemini').toLowerCase();
+const getAIProvider = (): string => (getEnv().AI_PROVIDER || 'gemini').toLowerCase();
 
 const parseList = (val: string | undefined): string[] =>
   (val || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -13,7 +14,7 @@ const veniceConfig = {
   name: 'venice',
   baseURL: 'https://api.venice.ai/api/v1',
   apiKeyEnv: 'VENICE_API_KEY',
-  models: parseList(ENV.VENICE_MODEL || 'venice-v2'),
+  models: parseList(getEnv().VENICE_MODEL || 'venice-v2'),
   supportsEdits: false,
 };
 
@@ -21,15 +22,15 @@ const genspakeConfig = {
   name: 'genspake',
   baseURL: 'https://api.genspake.com',
   apiKeyEnv: 'GENSPAKE_API_KEY',
-  models: parseList(ENV.GENSPAKE_MODEL || 'genspake-image-1'),
+  models: parseList(getEnv().GENSPAKE_MODEL || 'genspake-image-1'),
   supportsEdits: false,
 };
 
 const nvidiaNimConfig = {
   name: 'nvidia-nim',
-  baseURL: ENV.NVIDIA_NIM_BASE_URL || 'https://api.nvcf.nvidia.com/v2',
+  baseURL: getEnv().NVIDIA_NIM_BASE_URL || 'https://api.nvcf.nvidia.com/v2',
   apiKeyEnv: 'NVIDIA_NIM_API_KEY',
-  models: parseList(ENV.NVIDIA_NIM_MODEL || 'stabilityai/stable-diffusion-3-5-large'),
+  models: parseList(getEnv().NVIDIA_NIM_MODEL || 'stabilityai/stable-diffusion-3-5-large'),
   supportsEdits: true,
   authHeader: 'Authorization',
   authPrefix: 'Bearer ',
@@ -39,7 +40,7 @@ const openRouterConfig = {
   name: 'openrouter',
   baseURL: 'https://openrouter.ai/api/v1',
   apiKeyEnv: 'OPENROUTER_API_KEY',
-  models: parseList(ENV.OPENROUTER_MODEL || 'openai/gpt-image-1'),
+  models: parseList(getEnv().OPENROUTER_MODEL || 'openai/gpt-image-1'),
   supportsEdits: false,
 };
 
@@ -47,7 +48,7 @@ const hfInferenceConfig = {
   name: 'huggingface',
   baseURL: 'https://api-inference.huggingface.co',
   apiKeyEnv: 'HUGGINGFACE_API_KEY',
-  models: parseList(ENV.HUGGINGFACE_MODEL || 'stabilityai/stable-diffusion-3-5-large'),
+  models: parseList(getEnv().HUGGINGFACE_MODEL || 'stabilityai/stable-diffusion-3-5-large'),
   supportsEdits: false,
   authHeader: 'Authorization',
   authPrefix: 'Bearer ',
@@ -72,16 +73,16 @@ const isProviderAvailable = (key: string): boolean => {
     huggingface: 'HUGGINGFACE_API_KEY',
   };
   const envVar = envVars[key];
-  return envVar ? parseList(ENV[envVar]).length > 0 : false;
+  return envVar ? parseList(getEnv()[envVar]).length > 0 : false;
 };
 
 export function getProvider(): StickerProvider {
-  const primary = PROVIDER_ORDER.find((p) => p.key === AI_PROVIDER) || PROVIDER_ORDER[0];
+  const primary = PROVIDER_ORDER.find((p) => p.key === getAIProvider()) || PROVIDER_ORDER[0];
   return primary.factory();
 }
 
 export function getProviderChain(): StickerProvider[] {
-  const primaryKey = AI_PROVIDER;
+  const primaryKey = getAIProvider();
   const ordered = [
     ...PROVIDER_ORDER.filter((p) => p.key === primaryKey),
     ...PROVIDER_ORDER.filter((p) => p.key !== primaryKey),
@@ -92,7 +93,7 @@ export function getProviderChain(): StickerProvider[] {
 export function getAvailableModels(providerKey: string): string[] {
   switch (providerKey) {
     case 'gemini':
-      return parseList(ENV.GEMINI_MODEL || 'gemini-2.5-flash-image');
+      return parseList(getEnv().GEMINI_MODEL || 'gemini-2.5-flash-image');
     case 'venice':
       return veniceConfig.models;
     case 'genspake':

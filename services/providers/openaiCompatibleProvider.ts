@@ -1,4 +1,4 @@
-import { StickerProvider, StickerProviderResult, StyleOption, VariationOptions, VariationStrength } from './types';
+import { StickerProvider, StyleOption, VariationStrength } from './types';
 
 export interface OpenAICompatibleConfig {
   name: string;
@@ -11,7 +11,6 @@ export interface OpenAICompatibleConfig {
 }
 
 const DEFAULT_TIMEOUT_MS = 60000;
-const VARIATION_TIMEOUT_MS = 65000;
 
 const withTimeout = <T>(promise: Promise<T>, ms: number, signal?: AbortSignal): Promise<T> => {
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
@@ -48,11 +47,6 @@ export function createOpenAICompatibleProvider(cfg: OpenAICompatibleConfig): Sti
   const authHeader = cfg.authHeader || 'Authorization';
   const authPrefix = cfg.authPrefix || 'Bearer ';
 
-  const getRandomKey = (): string => {
-    if (envKeys.length === 0) return '';
-    return envKeys[Math.floor(Math.random() * envKeys.length)];
-  };
-
   const postJSON = async (url: string, body: any, signal?: AbortSignal, retryKeys: string[] = envKeys) => {
     const keysToTry = retryKeys.length > 0 ? retryKeys : [''];
     let lastError: unknown = null;
@@ -84,11 +78,16 @@ export function createOpenAICompatibleProvider(cfg: OpenAICompatibleConfig): Sti
         return res.json();
       } catch (err) {
         lastError = err;
-        if (signal?.aborted) throw err;
+        if (signal?.aborted) throw new Error('error_cancelled', { cause: err });
         // continue to next key
       }
     }
-    throw lastError || new Error('error_process');
+    if (lastError) throw lastError;
+    throw new Error('error_process');
+  };
+
+  const throwIfAborted = (signal?: AbortSignal): void => {
+    if (signal?.aborted) throw new Error('error_cancelled');
   };
 
   const fetchImageAsDataUrl = async (url: string): Promise<string> => {
@@ -105,6 +104,7 @@ export function createOpenAICompatibleProvider(cfg: OpenAICompatibleConfig): Sti
   return {
     name: cfg.name,
     async generateSticker(imageBase64, style, variationPrompt, signal, modelOverride) {
+      throwIfAborted(signal);
       const model = modelOverride || cfg.models[0];
       const payload: any = {
         model,

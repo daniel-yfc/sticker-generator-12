@@ -30,6 +30,10 @@ describe('openaiCompatibleProvider - key rotation and model selection', () => {
     const authHeaders: string[] = [];
 
     mockFetch.mockImplementation(async (_url: string, init: any) => {
+      if (!init?.body) {
+        // Image fetch — return a blob
+        return { blob: async () => new Blob(['fake'], { type: 'image/png' }) };
+      }
       authHeaders.push(init.headers['Authorization']);
       if (authHeaders.length < 3) {
         return { ok: false, status: 401, text: async () => 'unauthorized' };
@@ -40,15 +44,9 @@ describe('openaiCompatibleProvider - key rotation and model selection', () => {
       };
     });
 
-    // Third key succeeds; then image fetch
-    mockFetch.mockResolvedValueOnce({
-      blob: async () => new Blob(['fake'], { type: 'image/png' }),
-    });
-
     await provider.generateSticker('data:image/png;base64,fake', { id: 1, prompt: 'x', previewColor: 'bg-red-500' });
 
     // Should have tried multiple keys
-    const uniqueKeys = new Set(authHeaders);
     expect(authHeaders.length).toBeGreaterThan(1);
   });
 
@@ -57,14 +55,14 @@ describe('openaiCompatibleProvider - key rotation and model selection', () => {
     let capturedBody: any = null;
 
     mockFetch.mockImplementation(async (_url: string, init: any) => {
+      if (!init?.body) {
+        return { blob: async () => new Blob(['fake'], { type: 'image/png' }) };
+      }
       capturedBody = JSON.parse(init.body);
       return {
         ok: true,
         json: async () => ({ data: [{ url: 'https://cdn.multi.test/img.png' }] }),
       };
-    });
-    mockFetch.mockResolvedValueOnce({
-      blob: async () => new Blob(['fake'], { type: 'image/png' }),
     });
 
     const result = await provider.generateSticker(
@@ -84,14 +82,14 @@ describe('openaiCompatibleProvider - key rotation and model selection', () => {
     let capturedBody: any = null;
 
     mockFetch.mockImplementation(async (_url: string, init: any) => {
+      if (!init?.body) {
+        return { blob: async () => new Blob(['fake'], { type: 'image/png' }) };
+      }
       capturedBody = JSON.parse(init.body);
       return {
         ok: true,
         json: async () => ({ data: [{ url: 'https://cdn.multi.test/img.png' }] }),
       };
-    });
-    mockFetch.mockResolvedValueOnce({
-      blob: async () => new Blob(['fake'], { type: 'image/png' }),
     });
 
     const result = await provider.generateSticker(
