@@ -191,7 +191,8 @@ const App: React.FC = () => {
         selectedStyle,
         undefined,
         controller.signal,
-        providerSettings.model
+        providerSettings.model,
+        providerSettings.provider
       );
 
       if (controller.signal.aborted) return;
@@ -244,7 +245,8 @@ const App: React.FC = () => {
           sourceImageBase64: processedImage || undefined,
         },
         controller.signal,
-        providerSettings.model
+        providerSettings.model,
+        providerSettings.provider
       );
 
       if (controller.signal.aborted) return;
@@ -309,7 +311,8 @@ const App: React.FC = () => {
         selectedStyle,
         variations,
         controller.signal,
-        providerSettings.model
+        providerSettings.model,
+        providerSettings.provider
       );
       if (controller.signal.aborted) return;
       const meta = getLastProviderMetadata();
