@@ -1,8 +1,8 @@
 # Sticker Maker Pro
 
-A client-side React + TypeScript + Vite app that turns a portrait photo into a die-cut style sticker using Google's Gemini image model. Supports single stickers, sticker sets, and character-consistent variations.
+A client-side React + TypeScript + Vite app that turns a portrait photo into a die-cut style sticker using AI. Supports multiple AI vendors (Gemini, Venice.AI, Genspake, NVIDIA NIM, OpenRouter, Hugging Face Inference) via a pluggable provider layer.
 
-> **Status: development-ready prototype.** Not yet production-ready. See "Security model" below.
+> **Status:** development-ready prototype. Not yet production-ready. See "Security model" below.
 
 ---
 
@@ -11,6 +11,7 @@ A client-side React + TypeScript + Vite app that turns a portrait photo into a d
 - Upload a portrait (PNG / JPEG / WebP, max 10 MB), crop and rotate with a built-in editor.
 - Choose from a catalog of art styles.
 - Generate a single sticker, a 4-piece sticker set, or a character-consistent variation of a previously generated sticker.
+- Switch AI providers via environment config (no code changes).
 - Browse past generations in a local history (per-browser, `localStorage`).
 - Three UI languages: 繁體中文, English, 日本語.
 
@@ -19,14 +20,14 @@ A client-side React + TypeScript + Vite app that turns a portrait photo into a d
 ### Prerequisites
 
 - Node.js 20+ (see `.github/workflows/ci.yml`).
-- A Gemini API key. Create one at <https://makersuite.google.com/app/apikey>. Use a **restricted, low-quota** key — see "Security model" below.
+- An API key for your chosen provider. See table below.
 
 ### Install and run
 
 ```bash
 npm install
 cp .env.example .env
-# Edit .env and set GEMINI_API_KEY to your key
+# Edit .env and set AI_PROVIDER + your provider's API key
 npm run dev
 ```
 
@@ -49,19 +50,34 @@ npm run test       # vitest run; runs in CI
 
 ---
 
+## Supported AI providers
+
+| Provider      | `AI_PROVIDER` value | Env var(s) to set                       | Notes                                      |
+|---------------|---------------------|-----------------------------------------|--------------------------------------------|
+| Google Gemini | `gemini` (default)  | `GEMINI_API_KEY`                        | Default; best for sticker transformations. |
+| Venice.AI     | `venice`            | `VENICE_API_KEY`, `VENICE_MODEL`        | OpenAI-compatible endpoint.                |
+| Genspake      | `genspake`          | `GENSPAKE_API_KEY`, `GENSPAKE_MODEL`    | OpenAI-compatible endpoint.                |
+| NVIDIA NIM    | `nvidia-nim`        | `NVIDIA_NIM_API_KEY`, `NVIDIA_NIM_BASE_URL`, `NVIDIA_NIM_MODEL` | Supports image edits; use SD3.5 or similar. |
+| OpenRouter    | `openrouter`        | `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`| Aggregator; pick any image model.          |
+| Hugging Face  | `huggingface`       | `HUGGINGFACE_API_KEY`, `HUGGINGFACE_MODEL` | Inference API for SD/other image models. |
+
+Set `AI_PROVIDER` in `.env` to switch. All other vendor keys are optional unless you select that provider.
+
+---
+
 ## Security model — read this first
 
-This project is a **local / private prototype**. The Gemini API key is read by `vite.config.ts` and **inlined into the browser bundle at build time**. That means:
+This project is a **local / private prototype**. API keys are read at build time and **inlined into the browser bundle**. That means:
 
-- Any value placed in `.env` becomes **public** to every user of the deployed app.
+- Any key placed in `.env` becomes **public** to every user of the deployed app.
 - There is no server, no rate limiting, no spend cap, and no abuse protection.
 
 **Do not** deploy the production build to a public URL with a real, unrestricted key.
 
 If you want to ship this beyond trusted local use, you must:
 
-1. Move the Gemini call behind a server-side proxy or serverless function.
-2. Keep the real key in server-side secrets only.
+1. Move AI calls behind a server-side proxy or serverless function.
+2. Keep real keys in server-side secrets only.
 3. Add authentication, rate limiting, quota/budget alerts, and origin restrictions on the proxy.
 
 `.env.example` includes a longer version of this warning at the top.
@@ -75,23 +91,21 @@ If you want to ship this beyond trusted local use, you must:
 ├── App.tsx                   # Orchestration / view state
 ├── index.tsx                 # React root + ErrorBoundary
 ├── types.ts                  # Shared domain types
-├── constants.ts              # Style catalog + i18n strings
+├── constants/
+│   ├── styles.ts             # Style catalog + sample gallery
+│   └── translations.ts       # i18n dictionaries (zh-TW, en, ja)
 ├── services/
-│   └── geminiService.ts      # Gemini API adapter
-├── components/
-│   ├── Header.tsx
-│   ├── FileUpload.tsx        # Trust boundary: validates MIME / size / magic bytes
-│   ├── ImageEditor.tsx       # Crop / rotate / zoom
-│   ├── StyleSelector.tsx
-│   ├── ProcessingView.tsx    # Loading state + cancel button
-│   ├── ResultDisplay.tsx     # Single / variation result
-│   ├── StickerSetView.tsx    # 4-piece set result
-│   ├── StickerHistory.tsx
-│   └── Gallery.tsx
+│   ├── stickerService.ts     # Facade (current public API)
+│   └── providers/
+│       ├── types.ts          # StickerProvider interface
+│       ├── geminiProvider.ts # Gemini adapter
+│       ├── openaiCompatibleProvider.ts # Vendor-agnostic OpenAI-like adapter
+│       └── registry.ts       # Env-driven factory
+├── components/               # UI components
 ├── images/                   # Static illustration assets
 ├── review_notes/             # External code reviews (Perplexity)
 ├── .env.example
-├── vite.config.ts            # Reads GEMINI_API_KEY, inlines it into the bundle
+├── vite.config.ts            # Reads env vars, inlines them into the bundle
 └── tsconfig.json
 ```
 
@@ -101,7 +115,13 @@ All configuration is via `.env`. See `.env.example` for the full list and the se
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `GEMINI_API_KEY` | yes | Gemini API key, inlined at build time. |
+| `AI_PROVIDER` | no (default `gemini`) | Selects active provider: `gemini`, `venice`, `genspake`, `nvidia-nim`, `openrouter`, `huggingface`. |
+| `GEMINI_API_KEY` | yes if `AI_PROVIDER=gemini` | Gemini API key, inlined at build time. |
+| `VENICE_API_KEY`, `VENICE_MODEL` | yes if `AI_PROVIDER=venice` | Venice.AI credentials + model. |
+| `GENSPAKE_API_KEY`, `GENSPAKE_MODEL` | yes if `AI_PROVIDER=genspake` | Genspake credentials + model. |
+| `NVIDIA_NIM_API_KEY`, `NVIDIA_NIM_BASE_URL`, `NVIDIA_NIM_MODEL` | yes if `AI_PROVIDER=nvidia-nim` | NVIDIA NIM credentials + endpoint + model. |
+| `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | yes if `AI_PROVIDER=openrouter` | OpenRouter credentials + model. |
+| `HUGGINGFACE_API_KEY`, `HUGGINGFACE_MODEL` | yes if `AI_PROVIDER=huggingface` | Hugging Face Inference credentials + model. |
 | `GEMINI_API_BASE_URL` | no | Reserved; not yet wired into `vite.config.ts`. |
 | `GEMINI_DEBUG` | no | Reserved; not yet wired in. |
 
@@ -111,13 +131,13 @@ All configuration is via `.env`. See `.env.example` for the full list and the se
 - **File size:** up to 10 MB.
 - **No animated images** (GIF / animated WebP) are supported.
 
-Uploaded images stay in your browser — they are sent directly to the Gemini API for generation and are not stored on any server.
+Uploaded images stay in your browser — they are sent directly to the selected AI provider for generation and are not stored on any server.
 
 ## Known limitations
 
 - `App.tsx` is a coordinator component; a future refactor can extract domain workflow logic into a custom hook or reducer.
 - `constants.ts` is large and a candidate for splitting into modular files.
-- The API key is bundled into the client for local prototyping; see "Security model".
+- API keys are bundled into the client for local prototyping; see "Security model".
 
 ## Roadmap
 
@@ -129,9 +149,9 @@ Priorities based on external architecture and security reviews:
 
 ## Privacy and AI-generated content
 
-- Generated stickers are produced by Gemini and may be subject to Google's safety filters. If a generation is blocked, the UI surfaces a localized "safety" message and does not retry.
+- Generated stickers are produced by the selected AI provider and may be subject to safety filters. If a generation is blocked, the UI surfaces a localized "safety" message and does not retry.
 - This app is for personal, non-commercial prototyping. Be mindful of consent when uploading photos of other people.
 
 ## License
 
-Not yet chosen. Add a `LICENSE` file before any public release.
+MIT License — see `LICENSE` file.

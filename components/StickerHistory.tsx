@@ -1,6 +1,6 @@
 import React from 'react';
 import { StickerRecord } from '../types';
-import { Download, Trash2, Clock } from 'lucide-react';
+import { Download, Trash2, Clock, Cpu } from 'lucide-react';
 
 interface StickerHistoryProps {
   history: StickerRecord[];
@@ -58,36 +58,36 @@ const StickerHistory: React.FC<StickerHistoryProps> = ({ history, onDelete, onCl
           return (
             <div key={item.id} className="group relative bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-all">
               <div className="aspect-square bg-gray-100 transparent-grid p-4 relative">
-                 <img 
-                   src={item.imageUrl} 
-                   alt="Sticker" 
-                   className="w-full h-full object-contain drop-shadow-sm transition-transform group-hover:scale-105" 
-                   loading="lazy"
-                 />
-                 
-                 {/* Actions Overlay */}
-                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <a
-                      href={item.imageUrl}
-                      download={`sticker-${item.id}.png`}
-                      className="p-2 bg-white text-indigo-600 rounded-full hover:bg-indigo-50 transition-colors"
-                      title={t('btn_download')}
-                      aria-label={t('btn_download')}
-                    >
-                      <Download className="w-4 h-4" />
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => onDelete(item.id)}
-                      className="p-2 bg-white text-red-500 rounded-full hover:bg-red-50 transition-colors"
-                      title="Delete"
-                      aria-label={`Delete sticker ${item.id}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                 </div>
+                <img
+                  src={item.imageUrl}
+                  alt="Sticker"
+                  className="w-full h-full object-contain drop-shadow-sm transition-transform group-hover:scale-105"
+                  loading="lazy"
+                />
+
+                {/* Actions Overlay */}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <a
+                    href={item.imageUrl}
+                    download={`sticker-${item.id}.png`}
+                    className="p-2 bg-white text-indigo-600 rounded-full hover:bg-indigo-50 transition-colors"
+                    title={t('btn_download')}
+                    aria-label={t('btn_download')}
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(item.id)}
+                    className="p-2 bg-white text-red-500 rounded-full hover:bg-red-50 transition-colors"
+                    title="Delete"
+                    aria-label={`Delete sticker ${item.id}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-              
+
               <div className="p-3">
                 <div className="flex items-center justify-between gap-1">
                   <p className="text-xs font-bold text-gray-800 truncate">{styleName}</p>
@@ -105,6 +105,12 @@ const StickerHistory: React.FC<StickerHistoryProps> = ({ history, onDelete, onCl
                     </span>
                   )}
                 </div>
+                {item.provider && (
+                  <div className="mt-1 flex items-center gap-1 text-[10px] text-gray-500">
+                    <Cpu className="w-3 h-3" />
+                    <span className="truncate">{item.provider}{item.model ? ` · ${item.model}` : ''}</span>
+                  </div>
+                )}
               </div>
             </div>
           );

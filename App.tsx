@@ -9,13 +9,8 @@ import StickerHistory from './components/StickerHistory';
 import ImageEditor from './components/ImageEditor';
 import StickerSetView from './components/StickerSetView';
 import { STYLES, TRANSLATIONS } from './constants';
-import { AppStatus, StyleOption, Language, ViewMode, StickerRecord, VariationStrength } from './types';
-import {
-  generateSticker,
-  generateStickerSet,
-  generateStickerVariation,
-  GenerationCancelledError,
-} from './services/geminiService';
+import { AppStatus, StyleOption, Language, ViewMode, StickerRecord, VariationStrength, ProviderSettings } from './types';
+import { generateSticker, generateStickerSet, generateStickerVariation, GenerationCancelledError, getLastProviderMetadata } from './services/stickerService';
 import { AlertCircle, ArrowRight, Layers, Sticker, RefreshCw, Sparkles } from 'lucide-react';
 
 const HISTORY_KEY = 'sticker_maker_history_v2';
@@ -37,6 +32,7 @@ const App: React.FC = () => {
 
   const [view, setView] = useState<ViewMode>('create');
   const [language, setLanguage] = useState<Language>('zh-TW');
+  const [providerSettings, setProviderSettings] = useState<ProviderSettings>({ provider: 'gemini' });
 
   const [history, setHistory] = useState<StickerRecord[]>([]);
 
@@ -83,6 +79,8 @@ const App: React.FC = () => {
       isVariation?: boolean;
       variationStrength?: VariationStrength;
       variationPrompt?: string;
+      provider?: string;
+      model?: string;
     }
   ) => {
     const newRecord: StickerRecord = {
@@ -93,6 +91,8 @@ const App: React.FC = () => {
       isVariation: options?.isVariation,
       variationStrength: options?.variationStrength,
       variationPrompt: options?.variationPrompt,
+      provider: options?.provider,
+      model: options?.model,
     };
     setHistory((prev) => [newRecord, ...prev].slice(0, MAX_HISTORY_ITEMS));
   };
@@ -190,17 +190,21 @@ const App: React.FC = () => {
         processedImage,
         selectedStyle,
         undefined,
-        controller.signal
+        controller.signal,
+        providerSettings.model,
+        providerSettings.provider
       );
 
       if (controller.signal.aborted) return;
+
+      const meta = getLastProviderMetadata();
 
       const img = new Image();
       img.onload = () => {
         if (controller.signal.aborted) return;
         abortRef.current = null;
         setGeneratedImage(resultImage);
-        addToHistory(resultImage, selectedStyle.id);
+        addToHistory(resultImage, selectedStyle.id, { provider: meta?.provider, model: meta?.model });
         setStatus(AppStatus.SUCCESS);
       };
       img.onerror = () => {
@@ -240,10 +244,14 @@ const App: React.FC = () => {
           customPrompt,
           sourceImageBase64: processedImage || undefined,
         },
-        controller.signal
+        controller.signal,
+        providerSettings.model,
+        providerSettings.provider
       );
 
       if (controller.signal.aborted) return;
+
+      const meta = getLastProviderMetadata();
 
       const img = new Image();
       img.onload = () => {
@@ -257,6 +265,8 @@ const App: React.FC = () => {
           isVariation: true,
           variationStrength: strength,
           variationPrompt: customPrompt,
+          provider: meta?.provider,
+          model: meta?.model,
         });
         setStatus(AppStatus.SUCCESS);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -300,10 +310,13 @@ const App: React.FC = () => {
         processedImage,
         selectedStyle,
         variations,
-        controller.signal
+        controller.signal,
+        providerSettings.model,
+        providerSettings.provider
       );
       if (controller.signal.aborted) return;
-      results.forEach((imgUrl) => addToHistory(imgUrl, selectedStyle.id));
+      const meta = getLastProviderMetadata();
+      results.forEach((imgUrl) => addToHistory(imgUrl, selectedStyle.id, { provider: meta?.provider, model: meta?.model }));
       setGeneratedSet(results);
       setStatus(AppStatus.SET_SUCCESS);
     } catch (error: any) {
@@ -358,10 +371,10 @@ const App: React.FC = () => {
         currentLang={language}
         onLangChange={setLanguage}
         t={t}
+        onProviderSettingsChange={setProviderSettings}
       />
 
       <main className="flex-grow max-w-5xl mx-auto w-full px-4 py-8">
-
         {view === 'gallery' ? (
           <Gallery
             onSelectStyle={handleGallerySelect}
@@ -372,11 +385,11 @@ const App: React.FC = () => {
           <div className="space-y-10 animate-fadeIn">
             <div className="bg-indigo-600 rounded-3xl p-8 text-white shadow-xl shadow-indigo-100 flex flex-col md:flex-row items-center gap-6">
               <div className="bg-white/20 p-4 rounded-2xl">
-                 <Layers className="w-12 h-12" />
+                <Layers className="w-12 h-12" />
               </div>
               <div className="text-center md:text-left">
-                 <h2 className="text-3xl font-bold">{t('history_title')}</h2>
-                 <p className="text-indigo-100 mt-1">{t('history_subtitle')}</p>
+                <h2 className="text-3xl font-bold">{t('history_title')}</h2>
+                <p className="text-indigo-100 mt-1">{t('history_subtitle')}</p>
               </div>
               <button
                 onClick={() => setView('create')}
@@ -395,35 +408,34 @@ const App: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-8 animate-fadeIn">
-
             {status === AppStatus.EDITING && rawImage && (
-               <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-                 <div className="w-full max-w-xl">
-                   <ImageEditor
-                     imageSrc={rawImage}
-                     onConfirm={handleEditConfirm}
-                     onCancel={() => {
-                        setRawImage(null);
-                        setStatus(AppStatus.IDLE);
-                     }}
-                     t={t}
-                   />
-                 </div>
-               </div>
+              <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="w-full max-w-xl">
+                  <ImageEditor
+                    imageSrc={rawImage}
+                    onConfirm={handleEditConfirm}
+                    onCancel={() => {
+                      setRawImage(null);
+                      setStatus(AppStatus.IDLE);
+                    }}
+                    t={t}
+                  />
+                </div>
+              </div>
             )}
 
             {status === AppStatus.IDLE && (
-               <div className="mb-8 p-8 bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-6">
-                 <div className="bg-indigo-50 p-4 rounded-2xl">
-                    <Sparkles className="w-8 h-8 text-indigo-600" />
-                 </div>
-                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800 mb-1">{t('welcome_title')}</h2>
-                    <p className="text-gray-500">
-                      {t('welcome_desc')} <span className="font-bold text-indigo-600 underline decoration-2 underline-offset-4">{t('welcome_default_style')}</span>。
-                    </p>
-                 </div>
-               </div>
+              <div className="mb-8 p-8 bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-6">
+                <div className="bg-indigo-50 p-4 rounded-2xl">
+                  <Sparkles className="w-8 h-8 text-indigo-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800 mb-1">{t('welcome_title')}</h2>
+                  <p className="text-gray-500">
+                    {t('welcome_desc')} <span className="font-bold text-indigo-600 underline decoration-2 underline-offset-4">{t('welcome_default_style')}</span>。
+                  </p>
+                </div>
+              </div>
             )}
 
             {status === AppStatus.SUCCESS && generatedImage ? (
@@ -458,11 +470,11 @@ const App: React.FC = () => {
                   variationPrompt={lastVariationPrompt}
                 />
                 <div className="border-t border-gray-200 pt-12">
-                   <div className="flex items-center gap-3 mb-6">
-                      <Layers className="w-5 h-5 text-indigo-600" />
-                      <h3 className="text-xl font-bold text-gray-800">當前貼圖集 (Current Set)</h3>
-                   </div>
-                   <StickerHistory
+                  <div className="flex items-center gap-3 mb-6">
+                    <Layers className="w-5 h-5 text-indigo-600" />
+                    <h3 className="text-xl font-bold text-gray-800">當前貼圖集 (Current Set)</h3>
+                  </div>
+                  <StickerHistory
                     history={history.slice(0, 10)}
                     onDelete={deleteFromHistory}
                     t={t}
@@ -471,27 +483,27 @@ const App: React.FC = () => {
                 </div>
               </div>
             ) : status === AppStatus.SET_SUCCESS && generatedSet.length > 0 ? (
-               <div className="space-y-12 animate-fadeIn">
-                  <StickerSetView
-                    stickers={generatedSet}
-                    style={selectedStyle}
-                    onReset={handleReset}
-                    t={t}
-                    stylesTranslation={(TRANSLATIONS[language] as any).styles}
-                  />
-                  <div className="border-t border-gray-200 pt-12">
-                   <div className="flex items-center gap-3 mb-6">
-                      <Layers className="w-5 h-5 text-indigo-600" />
-                      <h3 className="text-xl font-bold text-gray-800">當前貼圖集 (Current Set)</h3>
-                   </div>
-                   <StickerHistory
+              <div className="space-y-12 animate-fadeIn">
+                <StickerSetView
+                  stickers={generatedSet}
+                  style={selectedStyle}
+                  onReset={handleReset}
+                  t={t}
+                  stylesTranslation={(TRANSLATIONS[language] as any).styles}
+                />
+                <div className="border-t border-gray-200 pt-12">
+                  <div className="flex items-center gap-3 mb-6">
+                    <Layers className="w-5 h-5 text-indigo-600" />
+                    <h3 className="text-xl font-bold text-gray-800">當前貼圖集 (Current Set)</h3>
+                  </div>
+                  <StickerHistory
                     history={history.slice(0, 10)}
                     onDelete={deleteFromHistory}
                     t={t}
                     stylesTranslation={(TRANSLATIONS[language] as any).styles}
                   />
                 </div>
-               </div>
+              </div>
             ) : (
               <>
                 {(status === AppStatus.IDLE || status === AppStatus.READY || status === AppStatus.UPLOADING || status === AppStatus.ERROR) && (
@@ -506,56 +518,56 @@ const App: React.FC = () => {
                       />
                     </div>
                     <div className="lg:col-span-1 order-1 lg:order-2 space-y-4">
-                       <div className="sticky top-24 space-y-6">
-                          <FileUpload
-                            onFileSelect={handleFileSelect}
-                            currentPreview={processedImage || undefined}
-                            onEditClick={() => setStatus(AppStatus.EDITING)}
-                            disabled={isProcessing}
-                            t={t}
-                          />
+                      <div className="sticky top-24 space-y-6">
+                        <FileUpload
+                          onFileSelect={handleFileSelect}
+                          currentPreview={processedImage || undefined}
+                          onEditClick={() => setStatus(AppStatus.EDITING)}
+                          disabled={isProcessing}
+                          t={t}
+                        />
 
-                          {status === AppStatus.READY && (
-                            <div className="space-y-3">
+                        {status === AppStatus.READY && (
+                          <div className="space-y-3">
+                            <button
+                              onClick={handleGenerate}
+                              className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xl shadow-xl shadow-indigo-200 transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-3 group"
+                            >
+                              <Sparkles className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                              GO! (Single)
+                              <ArrowRight className="w-6 h-6" />
+                            </button>
+                            <button
+                              onClick={handleGenerateSet}
+                              className="w-full py-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-2xl font-bold text-lg border border-indigo-200 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3"
+                            >
+                              <Layers className="w-5 h-5" />
+                              {t('btn_generate_set')}
+                            </button>
+                          </div>
+                        )}
+
+                        {status === AppStatus.ERROR && errorMessage && (
+                          <div className="p-6 bg-red-50 text-red-600 rounded-2xl border border-red-100 flex flex-col gap-4 shadow-sm animate-fadeIn">
+                            <div className="flex items-start gap-3">
+                              <AlertCircle className="w-6 h-6 shrink-0" />
+                              <div>
+                                <h3 className="font-bold text-lg">{t('error_header')}</h3>
+                                <p className="text-sm opacity-90">{errorMessage}</p>
+                              </div>
+                            </div>
+                            {processedImage && (
                               <button
                                 onClick={handleGenerate}
-                                className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xl shadow-xl shadow-indigo-200 transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-3 group"
+                                className="bg-white text-red-600 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-red-50 transition-colors w-fit flex items-center gap-2"
                               >
-                                <Sparkles className="w-6 h-6 group-hover:rotate-12 transition-transform" />
-                                GO! (Single)
-                                <ArrowRight className="w-6 h-6" />
+                                <RefreshCw className="w-4 h-4" />
+                                {t('btn_retry')}
                               </button>
-                              <button
-                                onClick={handleGenerateSet}
-                                className="w-full py-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-2xl font-bold text-lg border border-indigo-200 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-3"
-                              >
-                                <Layers className="w-5 h-5" />
-                                {t('btn_generate_set')}
-                              </button>
-                            </div>
-                          )}
-
-                          {status === AppStatus.ERROR && errorMessage && (
-                              <div className="p-6 bg-red-50 text-red-600 rounded-2xl border border-red-100 flex flex-col gap-4 shadow-sm animate-fadeIn">
-                                <div className="flex items-start gap-3">
-                                  <AlertCircle className="w-6 h-6 shrink-0" />
-                                  <div>
-                                    <h3 className="font-bold text-lg">{t('error_header')}</h3>
-                                    <p className="text-sm opacity-90">{errorMessage}</p>
-                                  </div>
-                                </div>
-                                {processedImage && (
-                                  <button
-                                    onClick={handleGenerate}
-                                    className="bg-white text-red-600 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-red-50 transition-colors w-fit flex items-center gap-2"
-                                  >
-                                    <RefreshCw className="w-4 h-4" />
-                                    {t('btn_retry')}
-                                  </button>
-                                )}
-                              </div>
-                          )}
-                       </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -577,9 +589,9 @@ const App: React.FC = () => {
       <footer className="bg-white border-t border-gray-100 py-10">
         <div className="max-w-5xl mx-auto px-4 text-center">
           <div className="flex justify-center gap-4 mb-4">
-             <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-                <Sticker className="w-6 h-6" />
-             </div>
+            <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+              <Sticker className="w-6 h-6" />
+            </div>
           </div>
           <p className="text-gray-400 text-sm">{t('footer')}</p>
         </div>
