@@ -1,6 +1,7 @@
-import React from 'react';
-import { Sparkles, Sticker, Globe } from 'lucide-react';
-import { Language, ViewMode } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Sparkles, Sticker, Globe, Settings } from 'lucide-react';
+import { Language, ViewMode, ProviderSettings } from '../types';
+import { getAvailableModels } from '../services/providers/registry';
 
 interface HeaderProps {
   currentView: ViewMode;
@@ -8,21 +9,59 @@ interface HeaderProps {
   currentLang: Language;
   onLangChange: (lang: Language) => void;
   t: (key: string) => any;
+  onProviderSettingsChange?: (settings: ProviderSettings) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, currentLang, onLangChange, t }) => {
+const PROVIDER_SETTINGS_KEY = 'sticker_maker_provider_settings';
+
+const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, currentLang, onLangChange, t, onProviderSettingsChange }) => {
   const navItems: { id: ViewMode; label: string }[] = [
     { id: 'create', label: t('nav_create') },
     { id: 'history', label: t('nav_history') },
     { id: 'gallery', label: t('nav_gallery') },
   ];
 
+  const [showSettings, setShowSettings] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<string>('gemini');
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(PROVIDER_SETTINGS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setSelectedProvider(parsed.provider || 'gemini');
+        setSelectedModel(parsed.model || '');
+      }
+    } catch (e) {
+      console.warn('Failed to load provider settings:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    const models = getAvailableModels(selectedProvider);
+    setAvailableModels(models);
+    if (models.length > 0 && !models.includes(selectedModel)) {
+      setSelectedModel(models[0]);
+    }
+  }, [selectedProvider]);
+
+  useEffect(() => {
+    if (onProviderSettingsChange) {
+      onProviderSettingsChange({ provider: selectedProvider, model: selectedModel });
+    }
+    try {
+      localStorage.setItem(PROVIDER_SETTINGS_KEY, JSON.stringify({ provider: selectedProvider, model: selectedModel }));
+    } catch (e) {
+      console.warn('Failed to save provider settings:', e);
+    }
+  }, [selectedProvider, selectedModel]);
+
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-20">
       <div className="max-w-5xl mx-auto px-4 py-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          
-          {/* Logo & Title */}
           <div
             role="button"
             tabIndex={0}
@@ -46,15 +85,14 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, currentLang,
           </div>
 
           <div className="flex items-center justify-between md:justify-end gap-6 flex-1">
-            {/* Navigation */}
             <nav className="flex bg-gray-100/80 p-1 rounded-lg">
               {navItems.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => onViewChange(item.id)}
                   className={`px-3 md:px-4 py-1.5 rounded-md text-sm font-bold transition-all whitespace-nowrap ${
-                    currentView === item.id 
-                      ? 'bg-white text-indigo-600 shadow-sm' 
+                    currentView === item.id
+                      ? 'bg-white text-indigo-600 shadow-sm'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
@@ -63,9 +101,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, currentLang,
               ))}
             </nav>
 
-            {/* Controls */}
             <div className="flex items-center gap-3">
-              {/* Language Switcher */}
               <div className="relative group">
                 <button
                   type="button"
@@ -75,8 +111,7 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, currentLang,
                   <Globe className="w-4 h-4" />
                   <span className="text-xs font-bold uppercase">{currentLang}</span>
                 </button>
-                
-                {/* Dropdown */}
+
                 <div className="absolute right-0 top-full mt-1 w-24 bg-white rounded-lg shadow-lg border border-gray-100 py-1 hidden group-hover:block">
                   <button onClick={() => onLangChange('zh-TW')} className="block w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 text-gray-700">繁體中文</button>
                   <button onClick={() => onLangChange('en')} className="block w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 text-gray-700">English</button>
@@ -84,7 +119,50 @@ const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, currentLang,
                 </div>
               </div>
 
-              {/* Version Badge */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowSettings(!showSettings)}
+                  className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700 px-2 py-1 rounded-md transition-colors"
+                  aria-label="Provider settings"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+                {showSettings && (
+                  <div className="absolute right-0 top-full mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-100 p-4 z-30">
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-bold text-gray-700">Provider</label>
+                        <select
+                          value={selectedProvider}
+                          onChange={(e) => setSelectedProvider(e.target.value)}
+                          className="mt-1 w-full px-2 py-1 text-sm border border-gray-200 rounded-md"
+                        >
+                          <option value="gemini">Google Gemini</option>
+                          <option value="venice">Venice.AI</option>
+                          <option value="genspake">Genspake</option>
+                          <option value="nvidia-nim">NVIDIA NIM</option>
+                          <option value="openrouter">OpenRouter</option>
+                          <option value="huggingface">Hugging Face</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-700">Model</label>
+                        <select
+                          value={selectedModel}
+                          onChange={(e) => setSelectedModel(e.target.value)}
+                          className="mt-1 w-full px-2 py-1 text-sm border border-gray-200 rounded-md"
+                        >
+                          {availableModels.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="hidden sm:flex items-center gap-1 text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full text-xs font-bold">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>V2.1</span>

@@ -24,18 +24,21 @@ export interface StickerProvider {
     imageBase64: string,
     style: StyleOption,
     variationPrompt?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    modelOverride?: string
   ): Promise<StickerProviderResult>;
   generateStickerVariation(
     previousStickerBase64: string,
     style: StyleOption,
     options: VariationOptions,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    modelOverride?: string
   ): Promise<StickerProviderResult>;
   generateStickerSet(
     sourceImageBase64: string,
     style: StyleOption,
     variations: string[],
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    modelOverride?: string
   ): Promise<StickerProviderResult[]>;
 }

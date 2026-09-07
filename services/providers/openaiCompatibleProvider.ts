@@ -4,7 +4,7 @@ export interface OpenAICompatibleConfig {
   name: string;
   baseURL: string;
   apiKeyEnv: string;
-  model: string;
+  models: string[]; // comma-separated in env, parsed to array
   supportsEdits?: boolean;
   authHeader?: string; // default 'Authorization'
   authPrefix?: string; // default 'Bearer '
@@ -44,42 +44,70 @@ const buildStylePrompt = (style: StyleOption): string =>
   `Art style directive: ${style.prompt}. Produce a die-cut sticker: thick white border, solid white background, 1:1, stylized illustration (not a photo).`;
 
 export function createOpenAICompatibleProvider(cfg: OpenAICompatibleConfig): StickerProvider {
-  const apiKey = (globalThis as any).process?.env?.[cfg.apiKeyEnv];
-  if (!apiKey) {
-    // Allow construction; fail at call time so env can be injected later if needed.
-  }
+  const envKeys = ((globalThis as any).process?.env?.[cfg.apiKeyEnv] || '').split(',').map((k: string) => k.trim()).filter(Boolean);
   const authHeader = cfg.authHeader || 'Authorization';
   const authPrefix = cfg.authPrefix || 'Bearer ';
 
-  const postJSON = async (url: string, body: any, signal?: AbortSignal) => {
-    const res = await withTimeout(
-      fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          [authHeader]: `${authPrefix}${apiKey}`,
-        },
-        body: JSON.stringify(body),
-        signal,
-      }),
-      DEFAULT_TIMEOUT_MS,
-      signal
-    );
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      if (res.status === 429) throw new Error('error_timeout');
-      if (/safety|policy|blocked/i.test(text)) throw new Error('error_safety');
-      throw new Error('error_process');
+  const getRandomKey = (): string => {
+    if (envKeys.length === 0) return '';
+    return envKeys[Math.floor(Math.random() * envKeys.length)];
+  };
+
+  const postJSON = async (url: string, body: any, signal?: AbortSignal, retryKeys: string[] = envKeys) => {
+    const keysToTry = retryKeys.length > 0 ? retryKeys : [''];
+    let lastError: unknown = null;
+
+    for (const key of keysToTry) {
+      try {
+        const res = await withTimeout(
+          fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              [authHeader]: `${authPrefix}${key}`,
+            },
+            body: JSON.stringify(body),
+            signal,
+          }),
+          DEFAULT_TIMEOUT_MS,
+          signal
+        );
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          if (res.status === 401 || res.status === 403 || res.status === 429) {
+            lastError = new Error(res.status === 429 ? 'error_timeout' : 'error_process');
+            continue; // try next key
+          }
+          if (/safety|policy|blocked/i.test(text)) throw new Error('error_safety');
+          throw new Error('error_process');
+        }
+        return res.json();
+      } catch (err) {
+        lastError = err;
+        if (signal?.aborted) throw err;
+        // continue to next key
+      }
     }
-    return res.json();
+    throw lastError || new Error('error_process');
+  };
+
+  const fetchImageAsDataUrl = async (url: string): Promise<string> => {
+    const imgRes = await fetch(url);
+    const blob = await imgRes.blob();
+    const reader = new FileReader();
+    return new Promise<string>((resolve, reject) => {
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('error_process'));
+      reader.readAsDataURL(blob);
+    });
   };
 
   return {
     name: cfg.name,
-    async generateSticker(imageBase64, style, variationPrompt, signal) {
-      if (!apiKey) throw new Error('error_process');
+    async generateSticker(imageBase64, style, variationPrompt, signal, modelOverride) {
+      const model = modelOverride || cfg.models[0];
       const payload: any = {
-        model: cfg.model,
+        model,
         prompt: `${buildStylePrompt(style)}${variationPrompt ? ` Action: ${variationPrompt}.` : ''}`,
         image: imageBase64,
         n: 1,
@@ -88,23 +116,14 @@ export function createOpenAICompatibleProvider(cfg: OpenAICompatibleConfig): Sti
       const data = await postJSON(`${cfg.baseURL}/v1/images/generations`, payload, signal);
       const url = data?.data?.[0]?.url || data?.data?.[0]?.image_url;
       if (!url) throw new Error('error_no_image');
-      // If provider returns a URL, fetch and re-encode as data URL (client-side).
-      const imgRes = await fetch(url);
-      const blob = await imgRes.blob();
-      const reader = new FileReader();
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('error_process'));
-        reader.readAsDataURL(blob);
-      });
-      return { imageUrl: dataUrl, provider: cfg.name, model: cfg.model };
+      const imageUrl = await fetchImageAsDataUrl(url);
+      return { imageUrl, provider: cfg.name, model };
     },
-    async generateStickerVariation(previousStickerBase64, style, options, signal) {
-      if (!apiKey) throw new Error('error_process');
+    async generateStickerVariation(previousStickerBase64, style, options, signal, modelOverride) {
+      const model = modelOverride || cfg.models[0];
       if (cfg.supportsEdits) {
-        // Use images/edits endpoint if available (e.g., OpenAI, some NIMs).
         const payload: any = {
-          model: cfg.model,
+          model,
           prompt: `${buildStylePrompt(style)} Variation instruction: ${getStrengthGuidance(options.strength)}${options.customPrompt ? ` Custom: ${options.customPrompt}.` : ''}`,
           image: previousStickerBase64,
           n: 1,
@@ -113,19 +132,11 @@ export function createOpenAICompatibleProvider(cfg: OpenAICompatibleConfig): Sti
         const data = await postJSON(`${cfg.baseURL}/v1/images/edits`, payload, signal);
         const url = data?.data?.[0]?.url || data?.data?.[0]?.image_url;
         if (!url) throw new Error('error_no_image');
-        const imgRes = await fetch(url);
-        const blob = await imgRes.blob();
-        const reader = new FileReader();
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(new Error('error_process'));
-          reader.readAsDataURL(blob);
-        });
-        return { imageUrl: dataUrl, provider: cfg.name, model: cfg.model };
+        const imageUrl = await fetchImageAsDataUrl(url);
+        return { imageUrl, provider: cfg.name, model };
       } else {
-        // Fallback: treat as new generation using previous sticker as image guidance.
         const payload: any = {
-          model: cfg.model,
+          model,
           prompt: `${buildStylePrompt(style)} Create a variation of the provided sticker. ${getStrengthGuidance(options.strength)}${options.customPrompt ? ` Custom: ${options.customPrompt}.` : ''} Keep character identity and style identical.`,
           image: previousStickerBase64,
           n: 1,
@@ -134,19 +145,12 @@ export function createOpenAICompatibleProvider(cfg: OpenAICompatibleConfig): Sti
         const data = await postJSON(`${cfg.baseURL}/v1/images/generations`, payload, signal);
         const url = data?.data?.[0]?.url || data?.data?.[0]?.image_url;
         if (!url) throw new Error('error_no_image');
-        const imgRes = await fetch(url);
-        const blob = await imgRes.blob();
-        const reader = new FileReader();
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(new Error('error_process'));
-          reader.readAsDataURL(blob);
-        });
-        return { imageUrl: dataUrl, provider: cfg.name, model: cfg.model };
+        const imageUrl = await fetchImageAsDataUrl(url);
+        return { imageUrl, provider: cfg.name, model };
       }
     },
-    async generateStickerSet(sourceImageBase64, style, variations, signal) {
-      const results = await Promise.all(variations.map((v) => this.generateSticker(sourceImageBase64, style, v, signal)));
+    async generateStickerSet(sourceImageBase64, style, variations, signal, modelOverride) {
+      const results = await Promise.all(variations.map((v) => this.generateSticker(sourceImageBase64, style, v, signal, modelOverride)));
       return results;
     },
   };

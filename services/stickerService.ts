@@ -27,20 +27,20 @@ export async function generateSticker(
   imageBase64: string,
   style: StyleOption,
   variationPrompt?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  modelOverride?: string
 ): Promise<string> {
   const chain = getProviderChain();
   let lastError: unknown = null;
 
   for (const provider of chain) {
     try {
-      const result = await provider.generateSticker(imageBase64, style, variationPrompt, signal);
+      const result = await provider.generateSticker(imageBase64, style, variationPrompt, signal, modelOverride);
       lastProviderMetadata = { provider: result.provider, model: result.model };
       return result.imageUrl;
     } catch (err) {
       if (isAbortError(err)) throw err;
       lastError = err;
-      // Continue to next provider
     }
   }
 
@@ -51,14 +51,15 @@ export async function generateStickerVariation(
   previousStickerBase64: string,
   style: StyleOption,
   options: VariationOptions,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  modelOverride?: string
 ): Promise<string> {
   const chain = getProviderChain();
   let lastError: unknown = null;
 
   for (const provider of chain) {
     try {
-      const result = await provider.generateStickerVariation(previousStickerBase64, style, options, signal);
+      const result = await provider.generateStickerVariation(previousStickerBase64, style, options, signal, modelOverride);
       lastProviderMetadata = { provider: result.provider, model: result.model };
       return result.imageUrl;
     } catch (err) {
@@ -74,14 +75,15 @@ export async function generateStickerSet(
   sourceImageBase64: string,
   style: StyleOption,
   variations: string[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  modelOverride?: string
 ): Promise<string[]> {
   const chain = getProviderChain();
   let lastError: unknown = null;
 
   for (const provider of chain) {
     try {
-      const results = await provider.generateStickerSet(sourceImageBase64, style, variations, signal);
+      const results = await provider.generateStickerSet(sourceImageBase64, style, variations, signal, modelOverride);
       lastProviderMetadata = results.length > 0 ? { provider: results[0].provider, model: results[0].model } : null;
       return results.map((r) => r.imageUrl);
     } catch (err) {

@@ -66,3 +66,8 @@ export interface ValidatedFile {
   width: number;
   height: number;
 }
+
+export interface ProviderSettings {
+  provider: string;
+  model?: string;
+}
